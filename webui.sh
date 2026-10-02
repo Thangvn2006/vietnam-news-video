@@ -16,7 +16,10 @@ export PYTHONPATH="$CURRENT_DIR${PYTHONPATH:+:$PYTHONPATH}"
 MPT_WEBUI_HOST="${MPT_WEBUI_HOST:-127.0.0.1}"
 MPT_WEBUI_PORT="${MPT_WEBUI_PORT:-8501}"
 
-if [ -x "$CURRENT_DIR/.venv/bin/python" ]; then
+if [ -x "$CURRENT_DIR/venv/bin/python" ]; then
+  set -- "$CURRENT_DIR/venv/bin/python" -m streamlit
+  find_port() { find_available_port "$CURRENT_DIR/venv/bin/python"; }
+elif [ -x "$CURRENT_DIR/.venv/bin/python" ]; then
   set -- "$CURRENT_DIR/.venv/bin/python" -m streamlit
   find_port() { find_available_port "$CURRENT_DIR/.venv/bin/python"; }
 elif command -v uv >/dev/null 2>&1; then

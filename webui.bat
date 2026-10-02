@@ -10,7 +10,9 @@ if not defined MPT_WEBUI_HOST set "MPT_WEBUI_HOST=127.0.0.1"
 if not defined MPT_WEBUI_PORT set "MPT_WEBUI_PORT=8501"
 
 set "STREAMLIT_CMD="
-if exist "%CURRENT_DIR%\.venv\Scripts\python.exe" (
+if exist "%CURRENT_DIR%\venv\Scripts\python.exe" (
+    set "STREAMLIT_CMD="%CURRENT_DIR%\venv\Scripts\python.exe" -m streamlit"
+) else if exist "%CURRENT_DIR%\.venv\Scripts\python.exe" (
     set "STREAMLIT_CMD="%CURRENT_DIR%\.venv\Scripts\python.exe" -m streamlit"
 ) else if exist "%CURRENT_DIR%\lib\python\python.exe" (
     set "STREAMLIT_CMD="%CURRENT_DIR%\lib\python\python.exe" -m streamlit"
