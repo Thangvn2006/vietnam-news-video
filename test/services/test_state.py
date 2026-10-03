@@ -183,7 +183,7 @@ class TestMemoryState(unittest.TestCase):
         self.assertEqual(len(tasks), total)
 
     def test_patch_task_preserves_generated_outputs(self):
-        """异步发布更新不能覆盖已经完成的视频任务字段。"""
+        """Asynchronous publishing updates cannot overwrite completed video task fields."""
         state = MemoryState()
         state.update_task(
             "task-1",
@@ -249,10 +249,10 @@ class TestRedisState(unittest.TestCase):
 
     def test_get_all_tasks_paginates_across_scan_batches(self):
         """
-        Redis SCAN 分批返回 key 时，分页必须按任务键的稳定顺序切片。
+        When Redis SCAN returns keys in batches, the paging must be sliced in a stable order of task keys.
 
-        这个用例复现 PR #890 描述的 18 条任务、page_size=10 场景：
-        第一批 10 条，第二批 8 条；两页合起来应完整覆盖全部任务。
+        This use case reproduces the 18 tasks and page_size=10 scenario described in PR #890:
+        There are 10 items in the first batch and 8 items in the second batch; the two pages combined should completely cover all tasks.
         """
         state = self._build_state([10, 8])
 
@@ -276,7 +276,7 @@ class TestRedisState(unittest.TestCase):
         self.assertEqual(set(state._redis.scan_types), {"HASH"})
 
     def test_get_all_tasks_deduplicates_and_stabilizes_scan_order(self):
-        """两次独立扫描顺序不同、单次扫描重复返回键时仍不重不漏。"""
+        """The order of two independent scans is different, and the return key is repeated in a single scan without duplication or leakage."""
         state = self._build_state([3])
         state._redis.batches = [
             [b"task:1", b"task:0"],
@@ -320,7 +320,7 @@ class TestRedisState(unittest.TestCase):
         "MPT_TEST_REDIS_HOST not set",
     )
     def test_real_redis_get_all_tasks_ignores_queue_keys(self):
-        """真实 Redis 中的 List 队列不能被任务列表误当作 Hash 读取。"""
+        """The List queue in real Redis cannot be mistakenly read as Hash by the task list."""
         state = RedisState(
             host=os.environ["MPT_TEST_REDIS_HOST"],
             port=int(os.getenv("MPT_TEST_REDIS_PORT", "6379")),
@@ -352,7 +352,7 @@ class TestRedisState(unittest.TestCase):
         "MPT_TEST_REDIS_HOST not set",
     )
     def test_real_redis_pagination_keeps_a_stable_task_order(self):
-        """真实 Redis 的多批 SCAN 不应让跨页任务重复或丢失。"""
+        """Multi-batch SCAN for real Redis should not allow cross-page tasks to be duplicated or lost."""
         state = RedisState(
             host=os.environ["MPT_TEST_REDIS_HOST"],
             port=int(os.getenv("MPT_TEST_REDIS_PORT", "6379")),
@@ -400,7 +400,7 @@ class TestRedisState(unittest.TestCase):
         "MPT_TEST_REDIS_HOST not set",
     )
     def test_real_redis_patch_and_delete_are_atomic(self):
-        """真实 Redis 中并发删除和局部更新不能重新创建残缺任务。"""
+        """Concurrent deletions and partial updates in real Redis cannot recreate incomplete tasks."""
         state = RedisState(
             host=os.environ["MPT_TEST_REDIS_HOST"],
             port=int(os.getenv("MPT_TEST_REDIS_PORT", "6379")),
@@ -427,8 +427,8 @@ class TestRedisState(unittest.TestCase):
                 barrier.wait()
                 state.delete_task(task_id)
 
-            # Future.result() 会把工作线程异常重新抛到测试线程，避免 Redis
-            # 命令实际失败但仅打印线程异常、最终仍被误判为测试通过。
+            # Future.result() will re-throw the worker thread exception to the test thread to avoid Redis
+            # The command actually failed, but only the thread exception was printed, and was eventually misjudged as a test pass.
             with ThreadPoolExecutor(max_workers=2) as executor:
                 futures = [
                     executor.submit(patch_task),

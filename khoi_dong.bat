@@ -1,18 +1,18 @@
 @echo off
 chcp 65001 >nul
 setlocal enabledelayedexpansion
-title Vietnam News Video - MoneyPrinterTurbo WebUI
+title VietNamNewsVideo - WebUI Launcher
 
 cd /d "%~dp0"
 set "CURRENT_DIR=%CD%"
 set "PYTHONPATH=%CURRENT_DIR%"
 
 echo ======================================================================
-echo    KHỞI ĐỘNG VIETNAM NEWS VIDEO (MONEYPRINTERTURBO)
+echo    STARTING VIETNAMNEWSVIDEO
 echo ======================================================================
 echo.
 
-rem 1. Kiểm tra môi trường ảo
+rem 1. Check virtual environment
 set "PYTHON_EXE="
 if exist "%CURRENT_DIR%\venv\Scripts\python.exe" (
     set "PYTHON_EXE=%CURRENT_DIR%\venv\Scripts\python.exe"
@@ -26,35 +26,35 @@ if not defined PYTHON_EXE goto PROMPT_INSTALL
 goto PROCEED_START
 
 :PROMPT_INSTALL
-echo [CẢNH BÁO] Chưa tìm thấy môi trường ảo (venv) chứa các thư viện của tool.
+echo [WARNING] Virtual environment (venv) was not found.
 echo.
-set /p AUTO_INSTALL="Bạn có muốn tự động cài đặt ngay bây giờ không? (Y/N, mặc định Y): "
+set /p AUTO_INSTALL="Do you want to automatically run setup now? (Y/N, default Y): "
 if /i "!AUTO_INSTALL!"=="N" (
-    echo Đã hủy. Vui lòng chạy file 'cai_dat.bat' trước khi mở tool.
+    echo Startup canceled. Please run 'install.bat' before launching the tool.
     pause
     exit /b 1
 )
-echo Đang chuyển sang tiến trình cài đặt...
+echo Switching to automated setup...
 echo.
 call "%CURRENT_DIR%\cai_dat.bat"
 if exist "%CURRENT_DIR%\venv\Scripts\python.exe" (
     set "PYTHON_EXE=%CURRENT_DIR%\venv\Scripts\python.exe"
 ) else (
-    echo [LỖI] Cài đặt chưa hoàn tất.
+    echo [ERROR] Setup did not complete successfully.
     pause
     exit /b 1
 )
 
 :PROCEED_START
-rem 2. Kiểm tra file config.toml
+rem 2. Check config.toml
 if not exist "%CURRENT_DIR%\config.toml" (
     if exist "%CURRENT_DIR%\config.example.toml" (
         copy "%CURRENT_DIR%\config.example.toml" "%CURRENT_DIR%\config.toml" >nul
-        echo [OK] Đã tự động tạo 'config.toml' từ mẫu.
+        echo [OK] Automatically initialized 'config.toml' from template.
     )
 )
 
-rem 3. Cấu hình Host và Port
+rem 3. Configure Host and Port
 if not defined MPT_WEBUI_HOST set "MPT_WEBUI_HOST=127.0.0.1"
 if not defined MPT_WEBUI_PORT set "MPT_WEBUI_PORT=8501"
 
@@ -65,23 +65,23 @@ if defined SELECTED_WEBUI_PORT (
     set "MPT_WEBUI_PORT=%SELECTED_WEBUI_PORT%"
 )
 
-echo [OK] Môi trường Python: %PYTHON_EXE%
-echo [OK] Địa chỉ WebUI: http://%MPT_WEBUI_HOST%:%MPT_WEBUI_PORT%
+echo [OK] Python Environment: %PYTHON_EXE%
+echo [OK] WebUI Address: http://%MPT_WEBUI_HOST%:%MPT_WEBUI_PORT%
 echo.
 echo ======================================================================
-echo    Đang khởi động giao diện WebUI và tự động mở trình duyệt...
-echo    (Để dừng ứng dụng, nhấn phím tắt Ctrl + C trong cửa sổ này)
+echo    Launching WebUI and opening browser...
+echo    (To stop the application, press Ctrl + C in this window)
 echo ======================================================================
 echo.
 
-rem Mở trình duyệt sau 2 giây
+rem Open browser after 2 seconds
 start "" powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Sleep -Seconds 2; Start-Process 'http://%MPT_WEBUI_HOST%:%MPT_WEBUI_PORT%'"
 
-rem Chạy Streamlit
+rem Run Streamlit
 "%PYTHON_EXE%" -m streamlit run .\webui\Main.py --server.address=%MPT_WEBUI_HOST% --server.port=%MPT_WEBUI_PORT% --browser.serverAddress=%MPT_WEBUI_HOST% --browser.gatherUsageStats=False --client.toolbarMode=minimal --logger.hideWelcomeMessage=True --server.showEmailPrompt=False --server.enableCORS=True
 
 if errorlevel 1 (
     echo.
-    echo [THÔNG BÁO] Ứng dụng đã dừng lại.
+    echo [INFO] Application stopped.
     pause
 )

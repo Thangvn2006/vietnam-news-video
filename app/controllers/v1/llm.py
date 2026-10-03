@@ -13,8 +13,8 @@ from app.models.schema import (
 from app.services import llm
 from app.utils import utils
 
-# LLM 接口与视频接口共用同一鉴权规则，避免新增端点时遗漏保护。
-# api_key 为空时 verify_token 直接放行，不改变默认本地使用体验。
+# The LLM interface and the video interface share the same authentication rules to avoid missing protection when adding endpoints.
+# When api_key is empty, verify_token is released directly without changing the default local usage experience.
 router = new_router(dependencies=[Depends(base.verify_token)])
 
 

@@ -1,20 +1,17 @@
 <div align="center">
 
-# MoneyPrinterTurbo 💸
+# VietNamNewsVideo 💸
 
 ### オールインワン AI ショート動画生成ツール
 
-動画の<b>テーマ</b>または<b>キーワード</b>を指定するだけで、MoneyPrinterTurbo が台本の生成、素材のマッチング、字幕と BGM の作成を行い、高画質のショート動画を出力します。
+動画の<b>テーマ</b>または<b>キーワード</b>を指定するだけで、VietNamNewsVideo が台本の生成、素材のマッチング、字幕と BGM の作成を行い、高画質のショート動画を出力します。
 
-[![Version](https://img.shields.io/github/v/release/harry0703/MoneyPrinterTurbo?color=blue&label=version)](https://github.com/harry0703/MoneyPrinterTurbo/releases)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest)
-[![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Downloads](https://img.shields.io/github/downloads/harry0703/MoneyPrinterTurbo/total)](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest)
+[![Version](https://img.shields.io/github/v/release/Thangvn2006/vietnam-news-video?color=blue&label=version)](https://github.com/Thangvn2006/vietnam-news-video/releases)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/Thangvn2006/vietnam-news-video/releases/latest)
+[![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Downloads](https://img.shields.io/github/downloads/Thangvn2006/vietnam-news-video/total)](https://github.com/Thangvn2006/vietnam-news-video/releases/latest)
 
-<a href="https://trendshift.io/repositories/8731" target="_blank"><img src="https://trendshift.io/api/badge/repositories/8731" alt="harry0703%2FMoneyPrinterTurbo | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
-<a href="https://www.star-history.com/harry0703/moneyprinterturbo"><img src="https://api.star-history.com/badge?repo=harry0703/MoneyPrinterTurbo" alt="Star History Rank" style="height: 55px;" height="55"/></a>
-
-日本語 | [English](README-en.md) | [简体中文](README.md) | [リリース](https://github.com/harry0703/MoneyPrinterTurbo/releases) | [Issues](https://github.com/harry0703/MoneyPrinterTurbo/issues)
+[Tiếng Việt](README.md) | [English](README-en.md) | [Issues](https://github.com/Thangvn2006/vietnam-news-video/issues)
 
 </div>
 
@@ -33,30 +30,30 @@
 ## スペシャルサンクス ❤️
 
 <div align="center">
-  <a href="https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo" target="_blank"><img src="https://gcdn.moonshot.cn/growth-cdn/sponsor/kimi-en.png" alt="Kimi sponsors MoneyPrinterTurbo" width="100%"></a>
+  <a href="https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=vietnamnewsvideo" target="_blank"><img src="https://gcdn.moonshot.cn/growth-cdn/sponsor/kimi-en.png" alt="Kimi sponsors VietNamNewsVideo" width="100%"></a>
 </div>
 
-本プロジェクトをスポンサードしてくださっている [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo) に感謝します！ [Kimi K3](https://www.kimi.com/blog/kimi-k3?aff=moneyprinterturbo) は Moonshot AI の最も高性能なモデルであり、世界初の 3T クラスのオープンモデルです。ネイティブの視覚能力と 100 万トークンのコンテキストウィンドウを備えた K3 は、ナレッジワーク、推論、長期にわたるタスクにおいて最先端の性能を発揮します。MoneyPrinterTurbo では、K3 が台本の作成と、最終的な映像素材を左右する検索キーワードの抽出を担い、動画制作を支えています。内容をより深く理解するほど、より適切な素材が得られます。
+本プロジェクトをスポンサードしてくださっている [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=vietnamnewsvideo) に感謝します！ [Kimi K3](https://www.kimi.com/blog/kimi-k3?aff=vietnamnewsvideo) は Moonshot AI の最も高性能なモデルであり、世界初の 3T クラスのオープンモデルです。ネイティブの視覚能力と 100 万トークンのコンテキストウィンドウを備えた K3 は、ナレッジワーク、推論、長期にわたるタスクにおいて最先端の性能を発揮します。VietNamNewsVideo では、K3 が台本の作成と、最終的な映像素材を左右する検索キーワードの抽出を担い、動画制作を支えています。内容をより深く理解するほど、より適切な素材が得られます。
 
-**MoneyPrinterTurbo ユーザー限定特典: 専用リンクから新規登録すると、初回のチャージ成功額の 10% 相当（上限 1,000 元）の API クレジットがボーナスとして付与されます。特典の終了は 2026 年 12 月 31 日です。Kimi オープンプラットフォーム（[中国語サイト](https://platform.kimi.com?track_id=track-6eec1e56a4494e52adcaebbcbbefce59&aff=moneyprinterturbo) | [グローバル](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo)）から API をお試しください。**
+**VietNamNewsVideo ユーザー限定特典: 専用リンクから新規登録すると、初回のチャージ成功額の 10% 相当（上限 1,000 元）の API クレジットがボーナスとして付与されます。特典の終了は 2026 年 12 月 31 日です。Kimi オープンプラットフォーム（[中国語サイト](https://platform.kimi.com?track_id=track-6eec1e56a4494e52adcaebbcbbefce59&aff=vietnamnewsvideo) | [グローバル](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=vietnamnewsvideo)）から API をお試しください。**
 
 <br>
 <table align="center">
   <tr>
     <td align="center" width="120">
-      <a href="https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=MoneyPrinterTurbo&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo"><img src="docs/sponsors/byteplus-logo.svg" alt="BytePlus" height="25"></a><br>
-      <a href="https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=MoneyPrinterTurbo&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo"><strong>BytePlus ModelArk</strong></a>
+      <a href="https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=VietNamNewsVideo&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=VietNamNewsVideo"><img src="docs/sponsors/byteplus-logo.svg" alt="BytePlus" height="25"></a><br>
+      <a href="https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=VietNamNewsVideo&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=VietNamNewsVideo"><strong>BytePlus ModelArk</strong></a>
     </td>
     <td align="left">
-      本プロジェクトをスポンサードしてくださっている Dola Seed に感謝します！ <a href="https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=MoneyPrinterTurbo&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo">Dola Seed 2.0</a> は、ByteDance がグローバル市場向けに独自開発した全モーダル対応の汎用大規模モデルです。統合マルチモーダルアーキテクチャを基盤とし、テキスト・画像・音声・動画の統合的な理解と生成をサポートします。エージェント連携をネイティブに実現し、推論、長時間タスクの遂行、ツール連携、コーディングにおいて優れた能力を発揮します。こちらのリンクから登録すると、モデルごとに 50 万トークンの無料推論枠が付与されます。
+      本プロジェクトをスポンサードしてくださっている Dola Seed に感謝します！ <a href="https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=VietNamNewsVideo&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=VietNamNewsVideo">Dola Seed 2.0</a> は、ByteDance がグローバル市場向けに独自開発した全モーダル対応の汎用大規模モデルです。統合マルチモーダルアーキテクチャを基盤とし、テキスト・画像・音声・動画の統合的な理解と生成をサポートします。エージェント連携をネイティブに実現し、推論、長時間タスクの遂行、ツール連携、コーディングにおいて優れた能力を発揮します。こちらのリンクから登録すると、モデルごとに 50 万トークンの無料推論枠が付与されます。
     </td>
   </tr>
   <tr>
     <td align="center" width="120">
-      <a href="https://go.apimart.ai/gh-moneyprinterturbo"><img src="docs/sponsors/apimart-logo.png" alt="APIMart" width="100"></a>
+      <a href="https://go.apimart.ai/gh-vietnamnewsvideo"><img src="docs/sponsors/apimart-logo.png" alt="APIMart" width="100"></a>
     </td>
     <td align="left">
-      本プロジェクトをスポンサードしてくださっている <a href="https://go.apimart.ai/gh-moneyprinterturbo">APIMart</a> に感謝します！ APIMart は、AI 画像・動画生成に特化した低価格 API プラットフォームです。<strong>GPT-Image-2 は 1 枚あたり 0.006 米ドルから利用でき、1 米ドルで 160 枚以上の画像を生成できます</strong>。<strong>画像と動画を 1 つの非同期 API で扱い、コードを変更せずにモデルを切り替えられます</strong>。タスクを送信して ID を受け取った後、ポーリングまたはコールバックで結果を取得でき、数万枚規模のバッチ処理にも対応します。月額料金のない従量課金制で、<a href="https://go.apimart.ai/gh-moneyprinterturbo">こちらの登録リンク</a>からすぐに利用を開始できます。
+      本プロジェクトをスポンサードしてくださっている <a href="https://go.apimart.ai/gh-vietnamnewsvideo">APIMart</a> に感謝します！ APIMart は、AI 画像・動画生成に特化した低価格 API プラットフォームです。<strong>GPT-Image-2 は 1 枚あたり 0.006 米ドルから利用でき、1 米ドルで 160 枚以上の画像を生成できます</strong>。<strong>画像と動画を 1 つの非同期 API で扱い、コードを変更せずにモデルを切り替えられます</strong>。タスクを送信して ID を受け取った後、ポーリングまたはコールバックで結果を取得でき、数万枚規模のバッチ処理にも対応します。月額料金のない従量課金制で、<a href="https://go.apimart.ai/gh-vietnamnewsvideo">こちらの登録リンク</a>からすぐに利用を開始できます。
     </td>
   </tr>
   <tr>
@@ -67,7 +64,7 @@
     <td align="left">
       <strong>Metaso の MiniMax H3 動画生成 API</strong><br>
       Metaso は、コストパフォーマンスに優れた MiniMax H3 動画生成サービスを提供しています。料金は <strong>768P が 1 秒あたり 0.09 元、2K が 1 秒あたり 0.15 元</strong>です。ネイティブ 2K、映像と音声の同期、OpenAI 互換 API、ComfyUI に対応しており、GPU を自分で用意・運用する必要はありません。<br>
-      🎁 <a href="https://metaso.cn/minimax-h3/?s=MPT">MoneyPrinterTurbo 専用リンク</a>から登録すると、ボーナスクレジットや限定特典を受け取れます。
+      🎁 <a href="https://metaso.cn/minimax-h3/?s=MPT">VietNamNewsVideo 専用リンク</a>から登録すると、ボーナスクレジットや限定特典を受け取れます。
     </td>
   </tr>
   <tr>
@@ -95,10 +92,10 @@
   </tr>
   <tr>
     <td align="center" width="120">
-      <a href="https://fluxionai.space/register?source=github&amp;campaign=moneyprinterturbo&amp;promo=MONEYPRINTERTURBO"><img src="docs/sponsors/fluxionai-logo.png" alt="Fluxion AI" width="120"></a>
+      <a href="https://fluxionai.space/register?source=github&amp;campaign=vietnamnewsvideo&amp;promo=MONEYPRINTERTURBO"><img src="docs/sponsors/fluxionai-logo.png" alt="Fluxion AI" width="120"></a>
     </td>
     <td align="left">
-      本プロジェクトを支援してくださっている <a href="https://fluxionai.space/register?source=github&amp;campaign=moneyprinterturbo&amp;promo=MONEYPRINTERTURBO">Fluxion AI</a> に感謝します！ <strong>世界の主要 AI モデルへのアクセスと管理を、ひとつの窓口で。</strong>個人開発者、技術チーム、企業向けに、統一 API を通じて主要モデルを利用できるプラットフォームです。複数の接続経路を動的に切り替えることで可用性を高め、モデルの性能、応答時間、利用料金を透明に確認できます。モデルや接続経路によって、<strong>API 利用コストを公式料金や基準価格より 40%～98% 削減できます</strong>。<a href="https://fluxionai.space/register?source=github&amp;campaign=moneyprinterturbo&amp;promo=MONEYPRINTERTURBO">専用リンクから登録</a>すると、<strong>3 米ドル分の API クレジット</strong>を受け取れます。
+      本プロジェクトを支援してくださっている <a href="https://fluxionai.space/register?source=github&amp;campaign=vietnamnewsvideo&amp;promo=MONEYPRINTERTURBO">Fluxion AI</a> に感謝します！ <strong>世界の主要 AI モデルへのアクセスと管理を、ひとつの窓口で。</strong>個人開発者、技術チーム、企業向けに、統一 API を通じて主要モデルを利用できるプラットフォームです。複数の接続経路を動的に切り替えることで可用性を高め、モデルの性能、応答時間、利用料金を透明に確認できます。モデルや接続経路によって、<strong>API 利用コストを公式料金や基準価格より 40%～98% 削減できます</strong>。<a href="https://fluxionai.space/register?source=github&amp;campaign=vietnamnewsvideo&amp;promo=MONEYPRINTERTURBO">専用リンクから登録</a>すると、<strong>3 米ドル分の API クレジット</strong>を受け取れます。
     </td>
   </tr>
   <tr>
@@ -155,8 +152,8 @@
 ### 台本とモデルプロバイダー
 
 - [x] AI による**多言語動画台本**の生成・リライトに加え、独自台本の利用にも対応
-- [x] [Kimi / Moonshot AI](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo)、[OpenAI](https://platform.openai.com/api-keys)、[Anthropic Claude](https://platform.claude.com/settings/keys)、[Google Gemini](https://aistudio.google.com/app/apikey)、[DeepSeek](https://platform.deepseek.com/api_keys)、[Alibaba Cloud Qwen](https://qwen.ai/apiplatform)、[Microsoft Azure OpenAI](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/OpenAI)、[ByteDance VolcEngine Ark](https://console.volcengine.com/ark)、[xAI Grok](https://console.x.ai/)、[MiniMax](https://platform.minimax.io/)、[Xiaomi MiMo](https://platform.xiaomimimo.com/docs/zh-CN/quick-start/first-api-call) などの主要なモデルサービスに対応
-- [x] [Shengsuan Cloud](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK)、[APIMart](https://go.apimart.ai/gh-moneyprinterturbo)、[Cloudflare AI Gateway](https://dash.cloudflare.com/)、[Alibaba ModelScope](https://modelscope.cn/docs/model-service/API-Inference/intro)、[AIHubMix](https://aihubmix.com/)、[AIML API](https://aimlapi.com/app/keys)、[EvoLink](https://evolink.ai/dashboard/keys)、[OpenRouter](https://openrouter.ai/settings/keys)、[API Route](https://www.api-route.com/)、[Fluxion AI](https://fluxionai.space/register?source=github&campaign=moneyprinterturbo&promo=MONEYPRINTERTURBO)、[Ollama](https://ollama.com/)、[Claude Code サブスクリプション](https://code.claude.com/docs)、[OneAPI](https://github.com/songquanpeng/one-api)、[LiteLLM](https://docs.litellm.ai/docs/providers)、[Groq](https://console.groq.com/keys)、[Pollinations AI](https://enter.pollinations.ai/) などの統合ゲートウェイ、集約サービス、ローカルランタイムに対応
+- [x] [Kimi / Moonshot AI](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=vietnamnewsvideo)、[OpenAI](https://platform.openai.com/api-keys)、[Anthropic Claude](https://platform.claude.com/settings/keys)、[Google Gemini](https://aistudio.google.com/app/apikey)、[DeepSeek](https://platform.deepseek.com/api_keys)、[Alibaba Cloud Qwen](https://qwen.ai/apiplatform)、[Microsoft Azure OpenAI](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/OpenAI)、[ByteDance VolcEngine Ark](https://console.volcengine.com/ark)、[xAI Grok](https://console.x.ai/)、[MiniMax](https://platform.minimax.io/)、[Xiaomi MiMo](https://platform.xiaomimimo.com/docs/zh-CN/quick-start/first-api-call) などの主要なモデルサービスに対応
+- [x] [Shengsuan Cloud](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK)、[APIMart](https://go.apimart.ai/gh-vietnamnewsvideo)、[Cloudflare AI Gateway](https://dash.cloudflare.com/)、[Alibaba ModelScope](https://modelscope.cn/docs/model-service/API-Inference/intro)、[AIHubMix](https://aihubmix.com/)、[AIML API](https://aimlapi.com/app/keys)、[EvoLink](https://evolink.ai/dashboard/keys)、[OpenRouter](https://openrouter.ai/settings/keys)、[API Route](https://www.api-route.com/)、[Fluxion AI](https://fluxionai.space/register?source=github&campaign=vietnamnewsvideo&promo=MONEYPRINTERTURBO)、[Ollama](https://ollama.com/)、[Claude Code サブスクリプション](https://code.claude.com/docs)、[OneAPI](https://github.com/songquanpeng/one-api)、[LiteLLM](https://docs.litellm.ai/docs/providers)、[Groq](https://console.groq.com/keys)、[Pollinations AI](https://enter.pollinations.ai/) などの統合ゲートウェイ、集約サービス、ローカルランタイムに対応
 
 ### 動画・画像素材
 
@@ -184,7 +181,7 @@
 
 ## ギャラリー 🎬
 
-以下の例はすべて MoneyPrinterTurbo で生成されたものです。
+以下の例はすべて VietNamNewsVideo で生成されたものです。
 
 ### 縦型 9:16
 
@@ -246,24 +243,24 @@
 
 ### AI エージェントで動画を生成する
 
-お使いの AI エージェントが Skill ドキュメントを読み、ローカルのターミナルを操作できるなら、以下のプロンプトを送ってください。エージェントが MoneyPrinterTurbo のインストールと設定を行い、動画を生成して、動画ファイルのパスを返します。未設定の必須 API キーだけを尋ねてきます。このワークフローは現在 macOS と Windows に対応しています。
+お使いの AI エージェントが Skill ドキュメントを読み、ローカルのターミナルを操作できるなら、以下のプロンプトを送ってください。エージェントが VietNamNewsVideo のインストールと設定を行い、動画を生成して、動画ファイルのパスを返します。未設定の必須 API キーだけを尋ねてきます。このワークフローは現在 macOS と Windows に対応しています。
 
 ```text
-Use this Skill: https://raw.githubusercontent.com/harry0703/MoneyPrinterTurbo/main/docs/skill/SKILL.md
+Use this Skill: https://raw.githubusercontent.com/harry0703/VietNamNewsVideo/main/docs/skill/SKILL.md
 Create a video with the topic "How AI is changing everyday life."
 ```
 
 ### Google Colab で実行する
 
-ローカル環境を用意せずに MoneyPrinterTurbo を試したいですか？ Google Colab で直接実行できます！
+ローカル環境を用意せずに VietNamNewsVideo を試したいですか？ Google Colab で直接実行できます！
 
-[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/harry0703/MoneyPrinterTurbo/blob/main/docs/MoneyPrinterTurbo.ipynb)
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/harry0703/VietNamNewsVideo/blob/main/docs/VietNamNewsVideo.ipynb)
 
 ### Windows
 
 GitHub Releases から最新の Windows 用ワンクリックパッケージをダウンロードし、そのまま展開してください。
 
-- [最新の Windows 用ワンクリックパッケージをダウンロード](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest)
+- [最新の Windows 用ワンクリックパッケージをダウンロード](https://github.com/harry0703/VietNamNewsVideo/releases/latest)
 
 > 同ページの **Assets** から `.7z` ファイルをダウンロードしてください。GitHub が
 > 自動生成する `Source code (zip)` / `Source code (tar.gz)` はソースコードのみで、
@@ -287,7 +284,7 @@ GitHub Releases から最新の Windows 用ワンクリックパッケージを�
 #### ① プロジェクトをクローンする
 
 ```shell
-git clone https://github.com/harry0703/MoneyPrinterTurbo.git
+git clone https://github.com/harry0703/VietNamNewsVideo.git
 ```
 
 #### ② 初期設定を行う
@@ -305,11 +302,11 @@ Windows をお使いの場合は、Microsoft のドキュメントを参照し�
 2. [WSL で Docker コンテナを使用する](https://learn.microsoft.com/en-us/windows/wsl/tutorials/wsl-containers)
 
 ```shell
-cd MoneyPrinterTurbo
+cd VietNamNewsVideo
 docker compose -f docker-compose.release.yml up
 ```
 
-> 既定では `docker-compose.release.yml` を推奨します。GitHub Container Registry からビルド済みイメージ `ghcr.io/harry0703/moneyprinterturbo:latest` を取得します。
+> 既定では `docker-compose.release.yml` を推奨します。GitHub Container Registry からビルド済みイメージ `ghcr.io/harry0703/vietnamnewsvideo:latest` を取得します。
 > ローカルでイメージをビルドする必要がある場合は、これまでどおり `docker compose up` を実行できます。
 > 初回起動の前に、`config.example.toml` を `config.toml` にコピーしておくと、コンテナにマウントされます。
 
@@ -330,8 +327,8 @@ docker compose -f docker-compose.release.yml up
 [uv](https://docs.astral.sh/uv/) を使って Python 環境と依存関係を管理します。本プロジェクトは Python 3.11 以降に対応しており、以下の例では Python 3.11 を使用します。
 
 ```shell
-git clone https://github.com/harry0703/MoneyPrinterTurbo.git
-cd MoneyPrinterTurbo
+git clone https://github.com/harry0703/VietNamNewsVideo.git
+cd VietNamNewsVideo
 uv python install 3.11
 uv sync --frozen
 ```
@@ -352,7 +349,7 @@ pip install -r requirements.txt
 
 #### ② WebUI を起動する 🌐
 
-以下のコマンドは MoneyPrinterTurbo プロジェクトの`ルートディレクトリ`で実行する必要がある点に注意してください
+以下のコマンドは VietNamNewsVideo プロジェクトの`ルートディレクトリ`で実行する必要がある点に注意してください
 
 ###### Windows
 
@@ -421,7 +418,7 @@ uv run python cli.py --batch-file ./tasks.json --stop-at video
 
 ### 音声合成
 
-WebUI の **Azure TTS V1** は **Edge TTS** を利用しており、無料かつ API キー不要です。MoneyPrinterTurbo は **Azure TTS V2**、**SiliconFlow TTS**、**Google Gemini TTS**、**Xiaomi MiMo TTS**、**ElevenLabs TTS**、セルフホストの **Chatterbox TTS**、セルフホストの **Kokoro TTS**、**Fish Audio TTS**、および音声なしモードにも対応しています。
+WebUI の **Azure TTS V1** は **Edge TTS** を利用しており、無料かつ API キー不要です。VietNamNewsVideo は **Azure TTS V2**、**SiliconFlow TTS**、**Google Gemini TTS**、**Xiaomi MiMo TTS**、**ElevenLabs TTS**、セルフホストの **Chatterbox TTS**、セルフホストの **Kokoro TTS**、**Fish Audio TTS**、および音声なしモードにも対応しています。
 
 WebUI でプロバイダーと音声を選択し、必要な認証情報については画面の案内に従ってください。Edge TTS に API キーは不要です。[Azure TTS V2](https://portal.azure.com/) やその他のクラウドプロバイダーでは、それぞれのプラットフォームで発行した認証情報が必要です。利用可能な Edge TTS の音声は[音声リスト](./docs/voice-list.txt)で確認できます。
 
@@ -444,10 +441,10 @@ model_size = "large-v3-turbo"
 
 > 初回利用時、Whisper は Hugging Face からモデルを自動的にダウンロードします。自動ダウンロードに失敗する場合は、[Hugging Face](https://huggingface.co/Systran/faster-whisper-large-v3) から `whisper-large-v3` を手動でダウンロードしてください。
 
-モデルを展開したら、ディレクトリ全体を `.\MoneyPrinterTurbo\models` に配置します。最終的なパスは `.\MoneyPrinterTurbo\models\whisper-large-v3` になります:
+モデルを展開したら、ディレクトリ全体を `.\VietNamNewsVideo\models` に配置します。最終的なパスは `.\VietNamNewsVideo\models\whisper-large-v3` になります:
 
 ```
-MoneyPrinterTurbo
+VietNamNewsVideo
   ├─models
   │   └─whisper-large-v3
   │          config.json
@@ -533,7 +530,7 @@ Trying to load the model directly from the local cache, if it exists.
 
 ## フィードバックと提案 📢
 
-- [issue](https://github.com/harry0703/MoneyPrinterTurbo/issues) または [pull request](https://github.com/harry0703/MoneyPrinterTurbo/pulls) を送っていただけます。
+- [issue](https://github.com/harry0703/VietNamNewsVideo/issues) または [pull request](https://github.com/harry0703/VietNamNewsVideo/pulls) を送っていただけます。
 
 ## ライセンス 📝
 

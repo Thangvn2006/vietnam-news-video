@@ -1,25 +1,27 @@
+from typing import Any
+
 import numpy as np
-from moviepy import Clip, ColorClip, CompositeVideoClip, vfx
+from moviepy import ColorClip, CompositeVideoClip, vfx
 from PIL import Image
 
 
 # FadeIn
-def fadein_transition(clip: Clip, t: float) -> Clip:
+def fadein_transition(clip: Any, t: float) -> Any:
     return clip.with_effects([vfx.FadeIn(t)])
 
 
 # FadeOut
-def fadeout_transition(clip: Clip, t: float) -> Clip:
+def fadeout_transition(clip: Any, t: float) -> Any:
     return clip.with_effects([vfx.FadeOut(t)])
 
 
 # SlideIn
-def slidein_transition(clip: Clip, t: float, side: str) -> Clip:
+def slidein_transition(clip: Any, t: float, side: str) -> Any:
     width, height = clip.size
 
-    # MoviePy 内置 SlideIn 在当前这条处理链里对全屏素材不稳定，
-    # 会出现“逻辑上应用了转场，但画面几乎看不出变化”的情况。
-    # 这里改成显式黑底 + 位移动画，保证转场效果可见且行为可控。
+    # MoviePy's built-in SlideIn is unstable for full-screen materials in the current processing chain.
+    # There will be a situation where "the transition is logically applied, but there is almost no change in the picture."
+    # Here it is changed to explicit black background + displacement animation to ensure that the transition effect is visible and the behavior is controllable.
     def position(current_time: float):
         progress = min(max(current_time / max(t, 0.001), 0), 1)
 
@@ -43,11 +45,11 @@ def slidein_transition(clip: Clip, t: float, side: str) -> Clip:
 
 
 # SlideOut
-def slideout_transition(clip: Clip, t: float, side: str) -> Clip:
+def slideout_transition(clip: Any, t: float, side: str) -> Any:
     width, height = clip.size
     transition_start = max(clip.duration - t, 0)
 
-    # SlideOut 同样改成显式位移，保证片段末尾能稳定滑出画面。
+    # SlideOut is also changed to explicit displacement to ensure that the end of the clip can slide out of the screen stably.
     def position(current_time: float):
         if current_time <= transition_start:
             return (0, 0)
@@ -75,23 +77,23 @@ def slideout_transition(clip: Clip, t: float, side: str) -> Clip:
     )
 
 
-# 保留原始设计的 20% 缩放幅度，让三秒左右的短片也有清晰可见的 Ken Burns 运动感。
-# 缩放稳定性由下方的亚像素中心采样保证，不通过削弱效果幅度来掩盖源视频编码闪烁。
+# Retaining the 20% zoom range of the original design gives a clearly visible sense of Ken Burns' movement even in short clips of around three seconds.
+# Scaling stability is ensured by sub-pixel center sampling below, without masking source video encoding flicker by reducing the magnitude of the effect.
 _ZOOM_MAX_SCALE = 1.2
 
 
 def _zoom_frame(frame: np.ndarray, scale_factor: float) -> np.ndarray:
-    """使用亚像素中心裁剪实现无黑边且稳定的缩放效果。
+    """Use sub-pixel center cropping to achieve black-edge-free and stable zoom effects.
 
-    不能先把裁剪宽高转换为整数：缩放比例连续变化时，整数边界会按不同步长跳动，
-    并在奇偶尺寸切换时改变半像素采样相位，最终表现为画面抖动。Pillow 的 EXTENT
-    变换可以直接接收浮点边界，在固定输出画布上完成亚像素采样；左右、上下边界
-    始终围绕同一个浮点中心对称，因此适用于整段视频持续缓慢缩放的场景。
+    You cannot first convert the cropping width and height into integers: when the scaling ratio changes continuously, the integer boundaries will jump at different steps.
+    And when switching between odd and even sizes, the half-pixel sampling phase is changed, which ultimately manifests as screen jitter. Pillow's EXTENT
+    The transformation can directly receive floating point boundaries and complete sub-pixel sampling on the fixed output canvas; left and right, upper and lower boundaries
+    It is always symmetrical around the same floating point center, so it is suitable for scenes where the entire video continues to zoom slowly.
     """
     if scale_factor <= 0:
         raise ValueError("scale_factor must be greater than zero")
 
-    # 1 倍缩放直接返回原帧，避免无意义的重采样造成首帧轻微模糊。
+    # 1x zoom directly returns to the original frame to avoid meaningless resampling causing slight blurring of the first frame.
     if abs(scale_factor - 1.0) < 1e-9:
         return frame
 
@@ -108,18 +110,18 @@ def _zoom_frame(frame: np.ndarray, scale_factor: float) -> np.ndarray:
         (width, height),
         Image.Transform.EXTENT,
         (left, top, right, bottom),
-        # 视频连续缩放更关注相邻帧的一致性。BICUBIC/LANCZOS 虽然单帧更锐利，
-        # 但高频纹理跨越采样网格时容易出现振铃和亮度闪烁；BILINEAR 更柔和，
-        # 能以少量锐度损失换取更稳定的动态观感。
+        # Continuous video scaling pays more attention to the consistency of adjacent frames. BICUBIC/LANCZOS Although single frame is sharper,
+        # However, high-frequency textures are prone to ringing and brightness flickering when crossing the sampling grid; BILINEAR is softer and
+        # A small loss of sharpness can be exchanged for a more stable dynamic look.
         resample=Image.Resampling.BILINEAR,
     )
     return np.asarray(transformed)
 
 
-def zoomin_transition(clip: Clip, t: float) -> Clip:
-    """在整个片段内从原始画面平滑放大到 1.2 倍。"""
-    # t 暂时保留，用于与其它转场函数保持统一调用签名；缩放需要覆盖完整片段，
-    # 否则短暂缩放结束后画面会突然静止，不适合静态或低运动量素材。
+def zoomin_transition(clip: Any, t: float) -> Any:
+    """Smoothly zoom in from original to 1.2x across the entire clip."""
+    # t is temporarily reserved to maintain a unified call signature with other transition functions; scaling needs to cover the entire clip,
+    # Otherwise, the picture will suddenly freeze after a short zoom, which is not suitable for static or low-motion materials.
     _ = t
     duration = max(clip.duration, 0.001)
 
@@ -131,9 +133,9 @@ def zoomin_transition(clip: Clip, t: float) -> Clip:
     return clip.transform(scale_effect)
 
 
-def zoomout_transition(clip: Clip, t: float) -> Clip:
-    """在整个片段内从 1.2 倍平滑缩小到原始画面。"""
-    # 与 zoomin_transition 一致，t 仅用于兼容统一的转场调用接口。
+def zoomout_transition(clip: Any, t: float) -> Any:
+    """Smoothly zoom out from 1.2x to original frame throughout the clip."""
+    # Consistent with zoomin_transition, t is only used to be compatible with the unified transition calling interface.
     _ = t
     duration = max(clip.duration, 0.001)
 
@@ -143,3 +145,122 @@ def zoomout_transition(clip: Clip, t: float) -> Clip:
         return _zoom_frame(get_frame(current_time), scale_factor)
 
     return clip.transform(scale_effect)
+
+
+_PAN_MAX_SCALE = 1.15
+
+
+def _pan_frame(
+    frame: np.ndarray,
+    progress: float,
+    direction: str = "left",
+    scale_factor: float = _PAN_MAX_SCALE,
+) -> np.ndarray:
+    """Pan a frame smoothly across its canvas using sub-pixel interpolation without black borders.
+
+    progress: float from 0.0 to 1.0
+    direction: 'left', 'right', 'up', 'down'
+    scale_factor: slight overshoot scale (default 1.15) to allow panning room without black borders
+    """
+    if scale_factor <= 1.0:
+        scale_factor = 1.05
+
+    progress = min(max(progress, 0.0), 1.0)
+    height, width = frame.shape[:2]
+    crop_width = width / scale_factor
+    crop_height = height / scale_factor
+
+    max_dx = max(width - crop_width, 0.0)
+    max_dy = max(height - crop_height, 0.0)
+
+    if direction == "left":
+        # Image moves slowly to the left (viewing window starts at 0 and pans right)
+        left = max_dx * progress
+        top = (height - crop_height) / 2
+    elif direction == "right":
+        # Image moves slowly to the right (viewing window starts at max_dx and pans left)
+        left = max_dx * (1.0 - progress)
+        top = (height - crop_height) / 2
+    elif direction == "up":
+        left = (width - crop_width) / 2
+        top = max_dy * progress
+    elif direction == "down":
+        left = (width - crop_width) / 2
+        top = max_dy * (1.0 - progress)
+    else:
+        left = (width - crop_width) / 2
+        top = (height - crop_height) / 2
+
+    right = left + crop_width
+    bottom = top + crop_height
+
+    image = Image.fromarray(frame)
+    transformed = image.transform(
+        (width, height),
+        Image.Transform.EXTENT,
+        (left, top, right, bottom),
+        resample=Image.Resampling.BILINEAR,
+    )
+    return np.asarray(transformed)
+
+
+def _pan_zoom_frame(
+    frame: np.ndarray,
+    progress: float,
+    direction: str = "left",
+    start_scale: float = 1.10,
+    end_scale: float = 1.25,
+) -> np.ndarray:
+    """Pan across the frame while smoothly zooming in."""
+    progress = min(max(progress, 0.0), 1.0)
+    current_scale = start_scale + (end_scale - start_scale) * progress
+    return _pan_frame(frame, progress, direction=direction, scale_factor=current_scale)
+
+
+def pan_left_transition(clip: Any, t: float = 0) -> Any:
+    """Smoothly pan across the entire clip to the left (slow pan left)."""
+    _ = t
+    duration = max(clip.duration, 0.001)
+
+    def pan_effect(get_frame, current_time: float):
+        progress = min(max(current_time / duration, 0), 1)
+        return _pan_frame(get_frame(current_time), progress, direction="left")
+
+    return clip.transform(pan_effect)
+
+
+def pan_right_transition(clip: Any, t: float = 0) -> Any:
+    """Smoothly pan across the entire clip to the right (slow pan right)."""
+    _ = t
+    duration = max(clip.duration, 0.001)
+
+    def pan_effect(get_frame, current_time: float):
+        progress = min(max(current_time / duration, 0), 1)
+        return _pan_frame(get_frame(current_time), progress, direction="right")
+
+    return clip.transform(pan_effect)
+
+
+def pan_left_zoom_transition(clip: Any, t: float = 0) -> Any:
+    """Smoothly pan left while zooming in slightly across the entire clip."""
+    _ = t
+    duration = max(clip.duration, 0.001)
+
+    def pan_zoom_effect(get_frame, current_time: float):
+        progress = min(max(current_time / duration, 0), 1)
+        return _pan_zoom_frame(get_frame(current_time), progress, direction="left")
+
+    return clip.transform(pan_zoom_effect)
+
+
+def pan_right_zoom_transition(clip: Any, t: float = 0) -> Any:
+    """Smoothly pan right while zooming in slightly across the entire clip."""
+    _ = t
+    duration = max(clip.duration, 0.001)
+
+    def pan_zoom_effect(get_frame, current_time: float):
+        progress = min(max(current_time / duration, 0), 1)
+        return _pan_zoom_frame(get_frame(current_time), progress, direction="right")
+
+    return clip.transform(pan_zoom_effect)
+

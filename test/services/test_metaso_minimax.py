@@ -12,13 +12,13 @@ from app.services import task as task_service
 
 
 def _response(payload, status_code=200):
-    """构造只暴露服务层实际使用字段的轻量 HTTP 响应。"""
+    """Construct lightweight HTTP responses that expose only the fields actually used by the service layer."""
     return SimpleNamespace(status_code=status_code, json=lambda: payload)
 
 
 @pytest.fixture(autouse=True)
 def restore_config():
-    """隔离全局配置，避免供应商测试影响其它 Provider 用例。"""
+    """Isolate global configuration to prevent provider testing from affecting other Provider use cases."""
     original_app = dict(config.app)
     original_proxy = dict(config.proxy)
     config.app.update(

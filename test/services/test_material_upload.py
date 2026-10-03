@@ -80,21 +80,21 @@ class TestMaterialUploadService(unittest.TestCase):
         )
 
     def test_sanitize_filename_rejects_control_and_bidi_characters(self):
-        """控制符与双向控制符会破坏日志和界面上的文件名显示，必须拒绝。"""
+        """Control characters and bidirectional control characters will destroy the file name display in the log and interface and must be rejected."""
         for filename in (
-            # C0 控制符（原有行为，此处只作回归保护）
+            # C0 control character (original behavior, here only for regression protection)
             "clip\x00.mp4",
             "clip\n.mp4",
             "clip\t.mp4",
-            # C1 控制符：U+0085 会被部分日志查看器渲染成换行
+            # C1 control character: U+0085 will be rendered as a newline by some log viewers
             "clip\x7f.mp4",
             "clip\x85.mp4",
             "clip\x9b.mp4",
-            # 双向文本控制符：U+202E 之后的文本会被反向渲染
+            # Bidirectional text control character: Text after U+202E will be rendered in reverse
             "photo\u202egnp.mp4",
             "clip\u200e.mp4",
             "clip\u2069.mp4",
-            # Unicode 行/段分隔符
+            # Unicode line/paragraph separator
             "clip\u2028.mp4",
             "clip\u2029.mp4",
         ):
@@ -103,15 +103,15 @@ class TestMaterialUploadService(unittest.TestCase):
                     material_upload.sanitize_material_filename(filename)
 
     def test_sanitize_filename_keeps_printable_unicode_names(self):
-        """只拦截控制符和双向控制符，不误伤中文、组合符等正常文件名。"""
+        """Only control characters and bidirectional control characters are intercepted, and normal file names such as Chinese and combination characters are not accidentally damaged."""
         for filename in (
             "用户素材.mp4",
             "my clip.mp4",
-            "clip\u00a0.mp4",  # 不换行空格：可直接输入，也不改变显示顺序
-            "e\u0301tude.mp4",  # 组合重音符
-            "clip\u2019s.mp4",  # 弯引号
-            "clip\ufe0f.mp4",  # 变体选择符（Cf，但不影响显示顺序）
-            "family\u200d.mp4",  # ZWJ（Cf，emoji 序列依赖它）
+            "clip\u00a0.mp4",  # No line breaks and spaces: can be entered directly without changing the display order.
+            "e\u0301tude.mp4",  # Combining accents
+            "clip\u2019s.mp4",  # curly quotes
+            "clip\ufe0f.mp4",  # Variant selector (Cf, but does not affect display order)
+            "family\u200d.mp4",  # ZWJ (Cf, emoji sequences depend on it)
         ):
             with self.subTest(filename=filename):
                 self.assertEqual(

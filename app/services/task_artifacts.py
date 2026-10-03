@@ -1,4 +1,4 @@
-"""任务目录中持久化文件的安全读写。"""
+"""Safe reading and writing of persistent files in the task directory."""
 
 from __future__ import annotations
 
@@ -14,18 +14,18 @@ from app.utils import utils
 
 
 def _script_file(task_id: str) -> Path:
-    """返回任务脚本清单路径，并复用统一的任务目录创建逻辑。"""
+    """Return the task script manifest path and reuse the unified task directory creation logic."""
     return Path(utils.task_dir(task_id)) / "script.json"
 
 
 def _write_json_atomic(target: Path, payload: Mapping[str, Any]) -> None:
     """
-    在目标目录内原子写入 JSON，避免进程中断留下半个文件。
+    Atomicly write JSON in the target directory to avoid process interruption and leaving half a file.
 
-    临时文件和目标文件必须位于同一目录，才能保证 ``os.replace`` 在常见
-    本地文件系统和 Docker 挂载目录中保持原子替换语义。写入成功前不会修改
-    现有文件；异常时只清理本次创建的临时文件，并把错误交给调用方决定是否
-    影响主流程。
+    The temporary file and the target file must be in the same directory to ensure that ``os.replace``
+    Atomic replacement semantics are maintained in local file systems and Docker mount directories. It will not be modified until the write is successful.
+    Existing files; in case of exception, only the temporary files created this time will be cleaned up, and the error will be handed over to the caller to decide whether
+    Affect the main process.
     """
     temp_path: Path | None = None
     try:
@@ -57,17 +57,17 @@ def _write_json_atomic(target: Path, payload: Mapping[str, Any]) -> None:
 
 
 def write_script_data(task_id: str, payload: Mapping[str, Any]) -> None:
-    """创建或完整替换任务的 ``script.json`` 清单。"""
+    """Create or completely replace a task's ``script.json`` manifest."""
     _write_json_atomic(_script_file(task_id), payload)
 
 
 def patch_script_data(task_id: str, **updates: Any) -> bool:
     """
-    在保留原有字段的前提下补充任务清单，失败时返回 ``False``。
+    Supplement the task list while retaining the original fields, and return False on failure.
 
-    素材来源属于辅助诊断信息，不能因为文件权限、磁盘瞬时异常或历史文件损坏
-    阻断视频生成。因此该入口会记录完整异常并降级；首次创建任务清单仍使用
-    ``write_script_data``，由主流程决定基础任务数据写入失败时如何处理。
+    The source of the material is auxiliary diagnostic information and cannot be caused by file permissions, temporary disk abnormalities or historical file damage.
+    Block video generation. Therefore, this entry will record the complete exception and be downgraded; the first time the task list is created, it will still be used.
+    ``write_script_data``, the main process decides how to handle when the basic task data fails to be written.
     """
     try:
         target = _script_file(task_id)
@@ -80,8 +80,8 @@ def patch_script_data(task_id: str, **updates: Any) -> bool:
         _write_json_atomic(target, payload)
         return True
     except FileNotFoundError:
-        # ``download_videos`` 也可能被测试、脚本或第三方代码独立调用，此时没有
-        # 任务清单属于正常场景，不应制造警告或为了辅助记录创建残缺文件。
+        # ``download_videos`` may also be called independently by tests, scripts or third-party code. At this time, there is no
+        # To-do lists are a normal scenario and should not create warnings or create incomplete files for auxiliary records.
         logger.debug(
             f"skip task script update because script.json does not exist: "
             f"task_id={task_id}"

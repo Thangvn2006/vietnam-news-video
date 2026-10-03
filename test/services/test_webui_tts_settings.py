@@ -14,8 +14,8 @@ WEBUI_MAIN = ROOT_DIR / "webui" / "Main.py"
 I18N_DIR = ROOT_DIR / "webui" / "i18n"
 LOCALES = ("de", "en", "es", "id", "pt", "ru", "tr", "vi", "zh")
 
-# 每个服务商只维护一个官方入口。Chatterbox 是自托管服务，没有统一的 Key
-# 领取平台，因此链接到实际使用的兼容服务配置说明，避免误导用户注册第三方账号。
+# Each service provider only maintains one official entrance. Chatterbox is a self-hosted service and does not have a unified Key
+# Receive the platform, so link to the configuration instructions of the compatible services actually used to avoid misleading users to register third-party accounts.
 TTS_API_KEY_LABELS = {
     "Speech Key": "portal.azure.com",
     "SiliconFlow API Key": "cloud.siliconflow.cn/account/ak",
@@ -40,13 +40,13 @@ TTS_PROVIDER_WIDGETS = {
 
 
 def _load_translation(locale: str) -> dict:
-    """直接读取语言文件，确保断言覆盖用户实际看到的最终 Markdown 标签。"""
+    """Read the language file directly, ensuring that assertions cover the final Markdown tags that the user actually sees."""
     data = json.loads((I18N_DIR / f"{locale}.json").read_text(encoding="utf-8"))
     return data["Translation"]
 
 
 def _widget_by_key(elements, key: str):
-    """Streamlit 控件标签会翻译，使用稳定业务 key 定位真实输入框。"""
+    """Streamlit control labels will be translated and use stable business keys to locate the real input boxes."""
     return next(
         item
         for item in elements
@@ -56,7 +56,7 @@ def _widget_by_key(elements, key: str):
 
 
 def test_all_tts_api_key_labels_include_an_official_configuration_link():
-    """所有语言都应保留服务商名称和可点击入口，避免翻译时丢失链接。"""
+    """All languages should retain the service provider name and clickable entry to avoid losing links during translation."""
     for locale in LOCALES:
         translations = _load_translation(locale)
         for label_key, expected_host in TTS_API_KEY_LABELS.items():
@@ -66,7 +66,7 @@ def test_all_tts_api_key_labels_include_an_official_configuration_link():
 
 
 def test_tts_provider_inputs_render_the_standardized_labels():
-    """实际切换每个 TTS Provider，确认输入框没有绕过统一后的翻译标签。"""
+    """Actually switch each TTS Provider and confirm that the input box does not bypass the unified translation tag."""
     test_ui = dict(
         config.ui,
         voice_mode="tts",
@@ -171,7 +171,7 @@ def test_voxcpm_settings_render_reference_audio_with_cloud_notice():
 
 
 def test_voxcpm_reconnect_restores_saved_key_instead_of_clearing_it():
-    """Streamlit 重连重放空密码状态时，VoxCPM Key 仍应保留。"""
+    """When Streamlit reconnects and replays the empty password state, the VoxCPM Key should still be retained."""
     test_config = dict(config.voxcpm, api_key="saved-voxcpm-key")
     test_ui = dict(
         config.ui,
@@ -197,8 +197,8 @@ def test_voxcpm_reconnect_restores_saved_key_instead_of_clearing_it():
 
 def test_elevenlabs_reconnect_restores_saved_key_before_loading_voices():
     """
-    服务重启后浏览器可能重放空密码状态；WebUI 应保留配置并在当前 rerun 就用
-    已保存的 Key 加载音色，而不是只避免写空、却继续以空 Key 请求服务。
+    After the service is restarted, the browser may replay the empty password state; WebUI should retain the configuration and use it in the current rerun
+    Load the sound with the saved Key, instead of just avoiding writing an empty key and continuing to request service with an empty Key.
     """
     test_config = dict(config.elevenlabs, api_key="saved-key")
     test_ui = dict(
@@ -227,7 +227,7 @@ def test_elevenlabs_reconnect_restores_saved_key_before_loading_voices():
 
 
 def test_elevenlabs_environment_key_is_used_without_persisting_it():
-    """环境变量可以驱动音色加载，但不能被 WebUI 自动复制进 config.toml。"""
+    """Environment variables can drive sound loading, but cannot be automatically copied into config.toml by WebUI."""
     test_config = dict(config.elevenlabs, api_key="")
     test_ui = dict(
         config.ui,
@@ -255,7 +255,7 @@ def test_elevenlabs_environment_key_is_used_without_persisting_it():
 
 
 def test_minimax_reconnect_restores_saved_tts_key():
-    """浏览器重连后的空状态不能清除已经保存的 MiniMax TTS Key。"""
+    """The empty state after the browser reconnects cannot clear the saved MiniMax TTS Key."""
     test_config = dict(config.minimax_tts, api_key="saved-tts-key", base_url=voice.MINIMAX_TTS_GLOBAL_URL)
     test_ui = dict(config.ui, voice_mode="tts", tts_server="minimax-tts", voice_name="")
 
@@ -275,7 +275,7 @@ def test_minimax_reconnect_restores_saved_tts_key():
 
 
 def test_minimax_shared_llm_key_is_not_duplicated_in_tts_config():
-    """共享 LLM Key 应自动匹配区域，但不能被复制进 TTS 专用配置。"""
+    """The shared LLM Key should automatically match the zone, but cannot be copied into the TTS-specific configuration."""
     test_config = dict(config.minimax_tts, api_key="", base_url="")
     test_app_config = dict(
         config.app,
@@ -304,7 +304,7 @@ def test_minimax_shared_llm_key_is_not_duplicated_in_tts_config():
 
 
 def test_minimax_voice_selector_accepts_a_custom_voice_id():
-    """MiniMax 通用音色选择器应开启列表外 Voice ID 输入能力。"""
+    """The MiniMax Universal Voice Selector should enable off-list Voice ID input capabilities."""
     test_config = dict(
         config.minimax_tts,
         api_key="test-key",
@@ -337,7 +337,7 @@ def test_minimax_voice_selector_accepts_a_custom_voice_id():
 
 
 def test_minimax_voices_load_only_on_demand_and_sync_the_selected_voice():
-    """音色列表只在用户点击后加载，选择结果应同步到配置和通用音色控件。"""
+    """The timbre list is only loaded upon user click, and the selection results should be synced to the configuration and general timbre controls."""
     test_config = dict(
         config.minimax_tts,
         api_key="test-key",
@@ -377,7 +377,7 @@ def test_minimax_voices_load_only_on_demand_and_sync_the_selected_voice():
         app.session_state["ui_language"] = "zh"
         app.run()
 
-        # 普通页面 rerun 不能主动消耗 MiniMax API；只有点击按钮才查询。
+        # Ordinary page rerun cannot actively consume the MiniMax API; it can only be queried by clicking the button.
         get_catalog.assert_not_called()
         _widget_by_key(app.button, "load_minimax_voices_button").click().run()
         get_catalog.assert_called_once_with(

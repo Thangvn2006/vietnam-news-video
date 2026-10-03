@@ -1,4 +1,4 @@
-"""在线素材搜索结果的磁盘缓存。"""
+"""Disk caching of online material search results."""
 
 from __future__ import annotations
 
@@ -25,22 +25,22 @@ MATERIAL_SEARCH_CACHE_TTL_SECONDS = 24 * 60 * 60
 _CACHE_FORMAT_VERSION = 2
 _CACHE_CLEANUP_INTERVAL_SECONDS = 60 * 60
 _CACHE_FILE_PATTERN = re.compile(r"^[0-9a-f]{64}\.json$")
-# 保存缓存时先写入 NamedTemporaryFile(delete=False)，再用 os.replace 发布。
-# 进程被强制终止（Ctrl+C、容器停止、断电）时 Python 的异常兜底没有机会执行，
-# 会留下一个没有被替换的中间文件；它不匹配上面的缓存文件模式，必须单独识别
-# 才能回收，否则会永久累积在缓存目录里。
+# When saving the cache, first write NamedTemporaryFile(delete=False), and then use os.replace to publish.
+# When the process is forcibly terminated (Ctrl+C, container stopped, power off), Python's exception has no chance to execute.
+# will leave an intermediate file that has not been replaced; it does not match the cache file pattern above and must be identified separately
+# must be recycled, otherwise it will be permanently accumulated in the cache directory.
 _CACHE_TEMP_FILE_PATTERN = re.compile(r"^\.[0-9a-f]{64}-[a-z0-9_]+\.tmp$")
 
-# API 默认允许多个视频任务并发执行。固定数量的锁分片可以让相同搜索条件共用
-# 一个锁，同时避免按关键词永久保存 Lock 导致内存持续增长。它只负责合并当前
-# 进程内的并发请求；跨进程写入仍由临时文件和 os.replace 保证完整性。
+# The API allows multiple video tasks to be executed concurrently by default. A fixed number of lock shards can be shared by the same search conditions
+# A lock while avoiding persistent memory growth caused by permanently saving Lock by keyword. It is only responsible for merging the current
+# Concurrent requests within a process; cross-process writes are still protected by temporary files and os.replace for integrity.
 _CACHE_LOCKS = tuple(threading.Lock() for _ in range(256))
 _cleanup_state_lock = threading.Lock()
 _last_cleanup_monotonic: float | None = None
 
 
 def _safe_public_url(value) -> str | None:
-    """移除公开页面 URL 的查询参数和用户凭据，避免缓存意外保存 token。"""
+    """Remove query parameters and user credentials from public page URLs to avoid caches accidentally saving tokens."""
     if not isinstance(value, str) or not value.strip():
         return None
     try:
@@ -59,11 +59,11 @@ def _safe_public_url(value) -> str | None:
 
 def _cached_source_info(item: MaterialInfo) -> dict | None:
     """
-    按白名单构造可落盘的来源信息。
+    The source information that can be placed is constructed according to the white list.
 
-    搜索关键词已经包含在缓存键中，不再明文写入缓存内容；读取时由调用参数
-    恢复。下载 URL 由 ``MaterialInfo.url`` 单独保存，这里只允许公开素材页、
-    作者公开页和稳定业务标识，避免任意扩展字段进入磁盘缓存。
+    The search keyword is already included in the cache key, and the cache content is no longer written in plain text; when reading, it is determined by the calling parameters
+    restore. The download URL is saved separately by ``MaterialInfo.url``. Only the material page is allowed to be published here.
+    The author's public page and stable business identification prevent any extended fields from entering the disk cache.
     """
     source = item.source_info
     if not isinstance(source, dict) or not source:
@@ -108,10 +108,10 @@ def _cached_source_info(item: MaterialInfo) -> dict | None:
 
 def _cache_dir() -> Path:
     """
-    返回所有运行入口共用的素材搜索缓存目录。
+    Returns the material search cache directory shared by all running portals.
 
-    缓存必须位于 ``storage`` 下，而不是 WebUI session 或进程内存中，才能让
-    WebUI、API、CLI 以及 Docker 重启后的任务复用同一份结果。
+    The cache must be located under ``storage``, not in WebUI session or process memory, for this to work
+    WebUI, API, CLI, and tasks after Docker restart reuse the same results.
     """
     return Path(utils.storage_dir("cache_material_search", create=True))
 
@@ -123,10 +123,10 @@ def _cache_key(
     video_aspect: VideoAspect | str,
 ) -> str:
     """
-    根据会影响搜索结果的业务参数生成稳定文件名。
+    Generate stable filenames based on business parameters that affect search results.
 
-    API Key 只负责鉴权，不影响公开搜索结果，因此不能写入缓存键或缓存内容。
-    使用 SHA-256 可以避免关键词直接出现在文件名中，同时保持路径长度固定。
+    API Key is only responsible for authentication and does not affect public search results, so it cannot write cache keys or cache content.
+    Using SHA-256 prevents keywords from appearing directly in the file name while keeping the path length fixed.
     """
     aspect_value = getattr(video_aspect, "value", video_aspect)
     cache_key = json.dumps(
@@ -164,7 +164,7 @@ def get_material_search_cache_lock(
     minimum_duration: int,
     video_aspect: VideoAspect | str,
 ) -> threading.Lock:
-    """返回当前搜索条件对应的进程内锁分片。"""
+    """Returns the in-process lock slice corresponding to the current search condition."""
     digest = _cache_key(
         provider=provider,
         search_term=search_term,
@@ -188,7 +188,7 @@ def _is_same_cache_file(cache_path: Path, expected: os.stat_result) -> bool:
 def _remove_invalid_cache(
     cache_path: Path, expected: os.stat_result | None = None
 ) -> None:
-    """删除已经过期或无法解析的单个缓存文件，失败时不影响素材搜索主流程。"""
+    """Delete individual cache files that have expired or cannot be parsed. Failure will not affect the main material search process."""
     try:
         if expected is not None and not _is_same_cache_file(cache_path, expected):
             return
@@ -209,14 +209,14 @@ def load_material_search_cache(
     now: float | None = None,
 ) -> list[MaterialInfo] | None:
     """
-    读取仍在 24 小时有效期内的素材搜索结果。
+    Read material search results that are still valid for 24 hours.
 
-    ``None`` 表示缓存未命中，需要请求远端 API；空列表不作为有效缓存返回，
-    避免网络错误或上游异常被误缓存后持续阻断后续任务。
+    ``None`` indicates a cache miss and requires a remote API request; an empty list is not returned as a valid cache.
+    Avoid network errors or upstream exceptions that are mistakenly cached and continue to block subsequent tasks.
     """
     if str(provider).strip().lower() == "coverr":
-        # Coverr 的下载地址包含绑定 API Key 的签名 JWT。它只用于当前请求，
-        # 不能进入磁盘缓存；查询相同条件时顺带删除旧版本可能留下的缓存。
+        # The download address of Coverr contains the signed JWT bound to the API Key. It is only used for the current request,
+        # Cannot enter the disk cache; when querying the same conditions, the cache that may be left by the old version is deleted.
         try:
             _remove_invalid_cache(
                 _cache_path(
@@ -241,8 +241,8 @@ def load_material_search_cache(
             video_aspect=video_aspect,
         )
     except Exception as exc:
-        # 缓存目录创建、路径解析等异常不能阻断远端素材搜索。这里保留完整异常
-        # 类型和信息，便于定位权限或挂载问题，同时按缓存未命中继续主流程。
+        # Abnormalities such as cache directory creation and path resolution cannot block remote material search. Keep the complete exception here
+        # Type and information to facilitate locating permission or mounting issues, while continuing the main process by cache miss.
         logger.warning(
             "failed to prepare material search cache: "
             f"operation=read, error={type(exc).__name__}, detail={exc}"
@@ -261,8 +261,8 @@ def load_material_search_cache(
 
     current_time = time.time() if now is None else now
     cache_age = current_time - stat_result.st_mtime
-    # 系统时间回拨或文件从其它机器复制后，mtime 可能落在未来。此时不能把
-    # 缓存长期视为新鲜数据，直接失效并重新请求远端更可靠。
+    # mtime may fall into the future after the system time is rolled back or the file is copied from another machine. At this time, it cannot be
+    # The cache treats the data as fresh for a long time, and it is more reliable to invalidate it directly and re-request the remote end.
     if cache_age < 0 or cache_age >= MATERIAL_SEARCH_CACHE_TTL_SECONDS:
         _remove_invalid_cache(cache_path, expected=stat_result)
         return None
@@ -332,11 +332,11 @@ def save_material_search_cache(
     items: Iterable[MaterialInfo],
 ) -> bool:
     """
-    原子保存一次成功的非空素材搜索结果。
+    Atomic saves the results of a successful non-empty material search.
 
-    多个任务可能并发搜索相同关键词。先写入同目录唯一临时文件，再通过
-    ``os.replace`` 发布，可以保证读进程只会看到完整旧文件或完整新文件；
-    即使两个写进程同时完成，最终内容也都是同一缓存键对应的合法结果。
+    Multiple tasks may search for the same keyword concurrently. First write the only temporary file in the same directory, and then pass
+    ``os.replace`` is published to ensure that the reading process will only see the complete old file or the complete new file;
+    Even if two writing processes complete at the same time, the final content is the legal result corresponding to the same cache key.
     """
     if str(provider).strip().lower() == "coverr":
         return False
@@ -409,12 +409,12 @@ def cleanup_expired_material_search_cache(
     force: bool = False,
 ) -> int:
     """
-    低频清理没有再次被查询到的过期搜索缓存，以及中断写入遗留的临时文件。
+    Low-frequency cleaning of expired search caches that have not been queried again, and temporary files left behind by interrupted writes.
 
-    正常写入路径每小时最多扫描一次目录，避免每次搜索都产生线性目录遍历；
-    ``force`` 仅供测试或显式维护调用。只删除 SHA-256 命名的 JSON 缓存文件和本
-    模块自己生成的 ``.tmp`` 中间文件，不会触碰用户放入目录的其它文件。两者共用
-    同一套过期判定，因此仍在写入中的临时文件不会被并发清理误删。
+    The normal write path scans the directory at most once per hour to avoid linear directory traversal for each search;
+    ``force`` should only be called for testing or explicit maintenance. Delete only SHA-256 named JSON cache files and this
+    The ``.tmp`` intermediate file generated by the module itself will not touch other files placed in the directory by the user. Common to both
+    The same set of expiration decisions, so temporary files that are still being written will not be accidentally deleted by concurrent cleanup.
     """
     global _last_cleanup_monotonic
 

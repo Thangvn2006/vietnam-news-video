@@ -21,7 +21,7 @@ def _widget_by_key(elements, key):
 
 
 def test_fluxionai_settings_defaults_and_connection_button():
-    """真实运行 Streamlit 组件：检查默认值、配置覆盖及连接测试入口，不写用户配置。"""
+    """Really run the Streamlit component: check default values, configuration coverage and connection test entry, without writing user configuration."""
     app_config = dict(
         config.app,
         llm_provider="fluxionai",
@@ -70,7 +70,7 @@ def test_fluxionai_settings_defaults_and_connection_button():
 
 
 def test_kimi_platform_selection_keeps_endpoint_configuration_consistent():
-    """Kimi 平台切换必须同步 Base URL，并只允许自定义模式编辑地址。"""
+    """Kimi platform switching must synchronize the Base URL and only allow custom mode editing addresses."""
     app_config = dict(
         config.app,
         llm_provider="moonshot",
@@ -109,8 +109,8 @@ def test_kimi_platform_selection_keeps_endpoint_configuration_consistent():
         assert global_base_url.disabled is True
         assert app_config["moonshot_base_url"] == "https://api.moonshot.ai/v1"
         global_tips = "\n".join(str(item.value) for item in app.info)
-        assert "https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo" in global_tips
-        assert "https://platform.kimi.ai/docs/models?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo" in global_tips
+        assert "https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=vietnamnewsvideo" in global_tips
+        assert "https://platform.kimi.ai/docs/models?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=vietnamnewsvideo" in global_tips
         assert "offer ends December 31, 2026" in global_tips
 
         endpoint_select.set_value("china").run()
@@ -120,11 +120,11 @@ def test_kimi_platform_selection_keeps_endpoint_configuration_consistent():
         )
         assert china_base_url.value == "https://api.moonshot.cn/v1"
         assert china_base_url.disabled is True
-        # 中国站是 Registry 的兼容默认值，不应重复写入用户配置。
+        # The Chinese site is a compatible default value of the Registry and should not be written to user configuration repeatedly.
         assert app_config["moonshot_base_url"] == ""
         china_tips = "\n".join(str(item.value) for item in app.info)
-        assert "https://platform.kimi.com?track_id=track-6eec1e56a4494e52adcaebbcbbefce59&aff=moneyprinterturbo" in china_tips
-        assert "https://platform.kimi.com/docs/models?track_id=track-6eec1e56a4494e52adcaebbcbbefce59&aff=moneyprinterturbo" in china_tips
+        assert "https://platform.kimi.com?track_id=track-6eec1e56a4494e52adcaebbcbbefce59&aff=vietnamnewsvideo" in china_tips
+        assert "https://platform.kimi.com/docs/models?track_id=track-6eec1e56a4494e52adcaebbcbbefce59&aff=vietnamnewsvideo" in china_tips
 
         endpoint_select = _widget_by_key(
             app.selectbox,
@@ -155,7 +155,7 @@ def test_kimi_platform_selection_keeps_endpoint_configuration_consistent():
 
 
 def test_configure_llm_link_opens_settings_on_llm_tab():
-    """视频主题旁的快捷入口应一次点击就打开并定位大模型设置。"""
+    """The shortcut next to the video theme should open and locate the large model settings with one click."""
     with patch.object(config, "try_save_config", return_value=True):
         app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=60)
         app.session_state["ui_language"] = "en"
@@ -166,13 +166,13 @@ def test_configure_llm_link_opens_settings_on_llm_tab():
         assert [str(item.value) for item in app.exception] == []
         assert app.session_state["settings_dialog_open"] is True
         assert app.session_state["settings_dialog_tabs_en"] == "LLM Settings"
-        # 业务目标只用于一次定向打开。渲染后立即消费，避免普通“设置”入口
-        # 在之后被历史目标强制切回大模型标签页。
+        # Business goals are only used for one targeted opening. Consume immediately after rendering to avoid the normal "settings" entry
+        # Afterwards, the historical target forced me to switch back to the large model tab.
         assert "settings_dialog_target_tab" not in app.session_state
 
 
 def test_material_settings_target_uses_localized_tab_state_and_is_consumed():
-    """素材快捷入口保存稳定业务 ID，渲染时再解析当前语言标签。"""
+    """The material quick entry saves the stable business ID, and then parses the current language tag when rendering."""
     with patch.object(config, "try_save_config", return_value=True):
         app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=60)
         app.session_state["ui_language"] = "zh"
@@ -186,7 +186,7 @@ def test_material_settings_target_uses_localized_tab_state_and_is_consumed():
 
 
 def test_ai_video_settings_prioritize_sponsors_and_own_shengsuan_key():
-    """视频 Provider 应按约定的赞助商顺序展示，胜算云密钥只在设置中管理。"""
+    """Video Providers should be displayed in the agreed sponsor order, and odds cloud keys are only managed in settings."""
     app_config = dict(
         config.app,
         llm_provider="openai",

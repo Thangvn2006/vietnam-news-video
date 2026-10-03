@@ -43,7 +43,7 @@ SETTINGS_TRANSFER_CONSTANTS = {
 
 
 class _FakeStreamlit:
-    """只提供 _apply_key_backup 需要的 session_state 字典。"""
+    """Provide only the session_state dictionary required by _apply_key_backup."""
 
     def __init__(self):
         self.session_state = {}
@@ -58,10 +58,10 @@ def _record_runtime_config(section_name, key, value):
 
 def _load_settings_transfer_helpers():
     """
-    从 WebUI 入口中隔离加载导出导入相关的纯函数。
+    Isolate the pure functions related to loading, exporting and importing from the WebUI entrance.
 
-    与任务历史测试相同，直接导入 Main.py 会执行整套页面渲染。这里只编译目标
-    常量和函数，既验证真实实现，也不需要为测试拆出额外的生产模块。
+    As with the task history test, importing Main.py directly will perform a full set of page renderings. Only compile targets here
+    Constants and functions not only verify the real implementation, but also eliminate the need to separate additional production modules for testing.
     """
     tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
     selected_nodes = []
@@ -82,8 +82,8 @@ def _load_settings_transfer_helpers():
         "VideoParams": VideoParams,
         "bgm_service": bgm_service,
         "LLM_PROVIDER_REGISTRY": LLM_PROVIDER_REGISTRY,
-        # _apply_key_backup 写配置并清理控件状态，两者都由测试替身记录，
-        # 这样可以验证真实实现而不需要启动 Streamlit 会话。
+        # _apply_key_backup writes configuration and cleans control state, both recorded by the test double,
+        # This allows verification of the real implementation without starting a Streamlit session.
         "st": _FakeStreamlit(),
         "_set_runtime_config": _record_runtime_config,
     }
@@ -286,10 +286,10 @@ def test_key_backup_collects_credentials_and_their_companion_settings():
 
 def test_key_backup_carries_llm_provider_extra_fields_with_the_key():
     """
-    Cloudflare AI Gateway 的 Key 单独恢复没有意义，必须带上网关标识。
+    It is meaningless to restore Cloudflare AI Gateway's Key alone, and the gateway ID must be included.
 
-    额外字段从 Provider Registry 读取，因此以后新增的 Provider 字段也会
-    自动进入备份。
+    Extra fields are read from the Provider Registry, so future Provider fields added will also
+    Automatically enter backup.
     """
     cloudflare = get_llm_provider("cloudflare")
     extra_config_keys = [
@@ -398,7 +398,7 @@ def test_credential_widget_state_keys_match_settings_inputs():
 
 
 def test_credential_widget_state_keys_cover_shared_input_aliases():
-    """音频面板为同一份密钥提供了第二个输入框，别名必须一起返回。"""
+    """The audio panel provides a second input box for the same key, and the alias must be returned together."""
     assert credential_widget_state_keys("app", "gemini_api_key") == (
         "gemini_api_key_input",
         "gemini_tts_api_key_input",
@@ -443,7 +443,7 @@ def test_apply_key_backup_writes_config_and_clears_every_widget_alias():
         ("azure", "speech_key", "new-azure"),
         ("azure", "speech_region", "westeurope"),
     ]
-    # 每一个别名控件状态都必须消失，否则旧密钥会在下一次 rerun 写回配置。
+    # Each alias control state must disappear, otherwise the old key will be written back to the configuration on the next rerun.
     assert FAKE_STREAMLIT.session_state == {"video_subject": "untouched"}
 
 

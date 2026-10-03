@@ -1,0 +1,10 @@
+{
+    "venvPath": ".",
+    "venv": "venv",
+    "extraPaths": [
+        ".",
+        "webui"
+    ],
+    "typeCheckingMode": "basic",
+    "reportMissingTypeStubs": false
+}

@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Interactive Video Stage</title>
+<style>
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  body {
+    background: transparent;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: #f8fafc;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 4px 0 16px 0;
+  }
+  .stage-wrapper {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+  }
+  .video-stage {
+    position: relative;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #090d16;
+    box-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.12);
+    border: 2px solid #334155;
+    touch-action: none;
+    transition: width 0.2s ease, height 0.2s ease;
+  }
+  .bg-media {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    pointer-events: none;
+    z-index: 1;
+  }
+  .bg-placeholder {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 40%, #1e293b 0%, #090d16 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #94a3b8;
+    text-align: center;
+    padding: 20px;
+    pointer-events: none;
+    z-index: 1;
+  }
+  .overlay-top-grad {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 70px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 100%);
+    pointer-events: none;
+    z-index: 2;
+  }
+  .overlay-bot-grad {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 90px;
+    background: linear-gradient(0deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0) 100%);
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  /* Draggable Items Base */
+  .draggable-item {
+    position: absolute;
+    cursor: grab;
+    touch-action: none;
+    transition: box-shadow 0.15s ease;
+  }
+  .draggable-item:hover {
+    box-shadow: 0 0 0 2px #38bdf8, 0 8px 24px rgba(56, 189, 248, 0.4) !important;
+  }
+  .draggable-item.dragging {
+    cursor: grabbing !important;
+    opacity: 0.95;
+    box-shadow: 0 0 0 2px #38bdf8, 0 12px 28px rgba(56, 189, 248, 0.6) !important;
+    z-index: 99 !important;
+  }
+
+  /* Coordinate tooltip */
+  .coord-tooltip {
+    position: absolute;
+    top: -24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(15, 23, 42, 0.95);
+    border: 1px solid #38bdf8;
+    color: #38bdf8;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 4px;
+    pointer-events: none;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    z-index: 100;
+  }
+  .draggable-item.dragging .coord-tooltip,
+  .draggable-item:hover .coord-tooltip {
+    opacity: 1;
+  }
+
+  /* Headline styling */
+  #item-headline {
+    z-index: 15;
+    background: rgba(15, 23, 42, 0.88);
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 8px;
+    padding: 5px 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 95%;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  }
+  .headline-tag {
+    background: #e11d48;
+    color: #ffffff;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    box-shadow: 0 2px 6px rgba(225, 29, 72, 0.4);
+    white-space: nowrap;
+  }
+  .headline-text {
+    font-size: 11px;
+    font-weight: 700;
+    color: #ffffff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+  }
+
+  /* Source badge styling */
+  #item-source {
+    z-index: 14;
+    background: rgba(15, 23, 42, 0.92);
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 8px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #f8fafc;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+  }
+
+  /* Logo styling */
+  #item-logo {
+    z-index: 13;
+    display: inline-block;
+    padding: 4px;
+    border-radius: 8px;
+    border: 1px dashed rgba(255,255,255,0.25);
+    background: rgba(15, 23, 42, 0.3);
+  }
+  #item-logo img {
+    display: block;
+    object-fit: contain;
+    filter: drop-shadow(0 3px 8px rgba(0,0,0,0.8));
+    pointer-events: none;
+  }
+  .logo-handle-bar {
+    position: absolute;
+    top: -18px;
+    left: 0;
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid #38bdf8;
+    color: #38bdf8;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 4px;
+    pointer-events: none;
+    white-space: nowrap;
+    opacity: 0.75;
+  }
+  #item-logo:hover .logo-handle-bar {
+    opacity: 1;
+  }
+
+  /* Frame overlay styling */
+  #item-frame {
+    z-index: 5;
+    pointer-events: auto;
+    border: 1px dashed rgba(56, 189, 248, 0.3);
+    border-radius: 8px;
+  }
+  #item-frame img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: fill;
+    pointer-events: none;
+  }
+  .frame-handle-badge {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid #38bdf8;
+    color: #f8fafc;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    pointer-events: none;
+    opacity: 0.85;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.6);
+  }
+  #item-frame:hover .frame-handle-badge,
+  #item-frame.dragging .frame-handle-badge {
+    opacity: 1;
+    background: #0f172a;
+    border-color: #38bdf8;
+  }
+
+  .duration-badge {
+    background: rgba(0, 0, 0, 0.7);
+    color: #fde047;
+    font-size: 9px;
+    font-weight: 800;
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin-left: 4px;
+    border: 1px solid rgba(253, 224, 71, 0.45);
+    white-space: nowrap;
+  }
+
+  .drag-handle-hint {
+    color: #94a3b8;
+    font-size: 10px;
+    margin-right: 2px;
+  }
+
+  .canvas-guide {
+    margin-top: 8px;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 20px;
+    padding: 3px 12px;
+    font-size: 11px;
+    color: #cbd5e1;
+    pointer-events: none;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  }
+</style>
+</head>
+<body>
+  <div class="stage-wrapper">
+    <div id="videoStage" class="video-stage">
+      <div id="mediaContainer"></div>
+      <div class="overlay-top-grad"></div>
+      <div class="overlay-bot-grad"></div>
+
+      <!-- Draggable Frame -->
+      <div id="item-frame" class="draggable-item" style="display: none;">
+        <div class="coord-tooltip" id="tip-frame">0%, 0%</div>
+        <div class="frame-handle-badge">
+          <span class="drag-handle-hint">⠿</span>
+          <span>🖼️ Khung viền</span>
+          <span class="duration-badge" id="dur-frame"></span>
+        </div>
+        <img id="img-frame" src="" />
+      </div>
+
+      <!-- Draggable Headline -->
+      <div id="item-headline" class="draggable-item" style="display: none;">
+        <div class="coord-tooltip" id="tip-headline">50%, 8%</div>
+        <span class="drag-handle-hint">⠿</span>
+        <span class="headline-text" id="headline-text-content"></span>
+        <span class="duration-badge" id="dur-headline"></span>
+      </div>
+
+      <!-- Draggable Source Badge -->
+      <div id="item-source" class="draggable-item" style="display: none;">
+        <div class="coord-tooltip" id="tip-source">75%, 12%</div>
+        <span class="drag-handle-hint">⠿</span>
+        <span id="source-text-content">📌 Nguồn tin</span>
+        <span class="duration-badge" id="dur-source"></span>
+      </div>
+
+      <!-- Draggable Logo / Image -->
+      <div id="item-logo" class="draggable-item" style="display: none;">
+        <div class="coord-tooltip" id="tip-logo">8%, 6%</div>
+        <div class="logo-handle-bar"><span class="drag-handle-hint">⠿</span>🛡️ Logo</div>
+        <img id="img-logo" src="" />
+        <span class="duration-badge" id="dur-logo" style="position: absolute; bottom: -8px; right: -4px;"></span>
+      </div>
+
+      <!-- Subtitle preview (center-bottom) -->
+      <div id="subtitlePreview" style="position: absolute; bottom: 12%; left: 50%; transform: translateX(-50%); width: 88%; text-align: center; pointer-events: none; z-index: 10; font-weight: 800; font-size: 15px; color: #ffffff; text-shadow: 0 2px 4px rgba(0,0,0,0.9); line-height: 1.35;"></div>
+    </div>
+
+    <div class="canvas-guide">
+      <span>🖐️</span>
+      <span><strong>Nhấn giữ & kéo thả</strong> trực tiếp Tiêu đề, Nguồn, Logo hoặc Khung để thay đổi vị trí</span>
+    </div>
+  </div>
+
+<script>
+  let state = {
+    headline_x: 50.0,
+    headline_y: 8.0,
+    source_x: 75.0,
+    source_y: 12.0,
+    logo_x: 8.0,
+    logo_y: 6.0,
+    frame_x: 0.0,
+    frame_y: 0.0
+  };
+
+  const stage = document.getElementById("videoStage");
+
+  function sendToStreamlit(value) {
+    window.parent.postMessage({
+      isStreamlitMessage: true,
+      type: "streamlit:setComponentValue",
+      value: value
+    }, "*");
+  }
+
+  function setFrameHeight(height) {
+    window.parent.postMessage({
+      isStreamlitMessage: true,
+      type: "streamlit:setFrameHeight",
+      height: height || (stage.clientHeight + 60)
+    }, "*");
+  }
+
+  function notifyReady() {
+    window.parent.postMessage({
+      isStreamlitMessage: true,
+      type: "streamlit:componentReady",
+      apiVersion: 1
+    }, "*");
+  }
+
+  // Set up pointer drag for element inside canvas
+  function setupDraggable(el, keyX, keyY, tipEl, isCenteredX = false) {
+    let startX = 0, startY = 0;
+    let initialLeft = 0, initialTop = 0;
+    let isDragging = false;
+
+    el.addEventListener("pointerdown", function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      try { el.setPointerCapture(e.pointerId); } catch(err){}
+      isDragging = true;
+      el.classList.add("dragging");
+      startX = e.clientX;
+      startY = e.clientY;
+      initialLeft = el.offsetLeft;
+      initialTop = el.offsetTop;
+    });
+
+    el.addEventListener("pointermove", function(e) {
+      if (!isDragging) return;
+      e.preventDefault();
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      const stageW = stage.clientWidth;
+      const stageH = stage.clientHeight;
+      const elW = el.offsetWidth;
+      const elH = el.offsetHeight;
+
+      let newLeft = initialLeft + dx;
+      let newTop = initialTop + dy;
+
+      // Bound within canvas (allow frames some flexibility)
+      const minLeft = keyX === "frame_x" ? -stageW * 0.4 : 0;
+      const maxLeft = keyX === "frame_x" ? stageW * 0.9 : Math.max(0, stageW - elW);
+      const minTop = keyY === "frame_y" ? -stageH * 0.4 : 0;
+      const maxTop = keyY === "frame_y" ? stageH * 0.9 : Math.max(0, stageH - elH);
+
+      newLeft = Math.max(minLeft, Math.min(maxLeft, newLeft));
+      newTop = Math.max(minTop, Math.min(maxTop, newTop));
+
+      el.style.left = newLeft + "px";
+      el.style.top = newTop + "px";
+
+      // Calculate percentage
+      let pctX = isCenteredX 
+        ? Math.round(((newLeft + elW / 2) / stageW) * 1000) / 10 
+        : Math.round((newLeft / stageW) * 1000) / 10;
+      let pctY = Math.round((newTop / stageH) * 1000) / 10;
+
+      tipEl.innerText = `${pctX}%, ${pctY}%`;
+    });
+
+    function endDrag(e) {
+      if (!isDragging) return;
+      isDragging = false;
+      el.classList.remove("dragging");
+      try { el.releasePointerCapture(e.pointerId); } catch(err){}
+
+      const stageW = stage.clientWidth;
+      const stageH = stage.clientHeight;
+      const elW = el.offsetWidth;
+
+      let pctX = isCenteredX 
+        ? Math.round(((el.offsetLeft + elW / 2) / stageW) * 1000) / 10 
+        : Math.round((el.offsetLeft / stageW) * 1000) / 10;
+      let pctY = Math.round((el.offsetTop / stageH) * 1000) / 10;
+
+      state[keyX] = Math.max(0, Math.min(100, pctX));
+      state[keyY] = Math.max(0, Math.min(100, pctY));
+
+      // Post back to Streamlit
+      sendToStreamlit(state);
+    }
+
+    el.addEventListener("pointerup", endDrag);
+    el.addEventListener("pointercancel", endDrag);
+  }
+
+  const elHeadline = document.getElementById("item-headline");
+  const elSource = document.getElementById("item-source");
+  const elLogo = document.getElementById("item-logo");
+  const elFrame = document.getElementById("item-frame");
+
+  setupDraggable(elHeadline, "headline_x", "headline_y", document.getElementById("tip-headline"), true);
+  setupDraggable(elSource, "source_x", "source_y", document.getElementById("tip-source"), false);
+  setupDraggable(elLogo, "logo_x", "logo_y", document.getElementById("tip-logo"), false);
+  setupDraggable(elFrame, "frame_x", "frame_y", document.getElementById("tip-frame"), false);
+
+  function positionElement(el, pctX, pctY, isCenteredX = false) {
+    const stageW = stage.clientWidth;
+    const stageH = stage.clientHeight;
+    const elW = el.offsetWidth;
+
+    let left = isCenteredX 
+      ? (pctX / 100.0) * stageW - elW / 2 
+      : (pctX / 100.0) * stageW;
+    let top = (pctY / 100.0) * stageH;
+
+    left = Math.max(0, Math.min(stageW - elW, left));
+    top = Math.max(0, Math.min(stageH - el.offsetHeight, top));
+
+    el.style.left = left + "px";
+    el.style.top = top + "px";
+  }
+
+  function render(args) {
+    if (!args) return;
+
+    // Aspect ratio & dimensions
+    const aspect = String(args.aspect || "9:16");
+    let width = 310;
+    let height = 550;
+    if (aspect.includes("16:9") || aspect.includes("landscape")) {
+      width = 540;
+      height = 304;
+    } else if (aspect.includes("1:1") || aspect.includes("square")) {
+      width = 360;
+      height = 360;
+    }
+    stage.style.width = width + "px";
+    stage.style.height = height + "px";
+
+    // Background image
+    const mediaContainer = document.getElementById("mediaContainer");
+    if (args.bg_image) {
+      mediaContainer.innerHTML = `<img src="${args.bg_image}" class="bg-media" />`;
+    } else {
+      mediaContainer.innerHTML = `
+        <div class="bg-placeholder">
+          <div style="font-size: 38px; margin-bottom: 8px;">📰</div>
+          <div style="font-size: 13px; font-weight: 500; line-height: 1.4;">Chưa có ảnh tư liệu bản tin</div>
+        </div>
+      `;
+    }
+
+    // Subtitle preview
+    const subEl = document.getElementById("subtitlePreview");
+    if (args.subtitle_text) {
+      subEl.style.display = "block";
+      subEl.innerText = args.subtitle_text;
+    } else {
+      subEl.style.display = "none";
+    }
+
+    // Coordinates state
+    if (args.headline_x !== undefined) state.headline_x = Number(args.headline_x);
+    if (args.headline_y !== undefined) state.headline_y = Number(args.headline_y);
+    if (args.source_x !== undefined) state.source_x = Number(args.source_x);
+    if (args.source_y !== undefined) state.source_y = Number(args.source_y);
+    if (args.logo_x !== undefined) state.logo_x = Number(args.logo_x);
+    if (args.logo_y !== undefined) state.logo_y = Number(args.logo_y);
+    if (args.frame_x !== undefined) state.frame_x = Number(args.frame_x);
+    if (args.frame_y !== undefined) state.frame_y = Number(args.frame_y);
+
+    // 1. Headline
+    if (args.headline_enabled && args.headline_text) {
+      elHeadline.style.display = "flex";
+      document.getElementById("headline-text-content").innerText = args.headline_text;
+      const durEl = document.getElementById("dur-headline");
+      if (args.headline_duration > 0) {
+        durEl.style.display = "inline-block";
+        durEl.innerText = `⏱ ${args.headline_duration}s`;
+      } else {
+        durEl.style.display = "none";
+      }
+      setTimeout(() => positionElement(elHeadline, state.headline_x, state.headline_y, true), 10);
+    } else {
+      elHeadline.style.display = "none";
+    }
+
+    // 2. Source Badge
+    if (args.source_enabled && args.source_text) {
+      elSource.style.display = "flex";
+      document.getElementById("source-text-content").innerText = args.source_text.startsWith("📌") ? args.source_text : `📌 ${args.source_text}`;
+      const durEl = document.getElementById("dur-source");
+      if (args.source_duration > 0) {
+        durEl.style.display = "inline-block";
+        durEl.innerText = `⏱ ${args.source_duration}s`;
+      } else {
+        durEl.style.display = "none";
+      }
+      setTimeout(() => positionElement(elSource, state.source_x, state.source_y, false), 10);
+    } else {
+      elSource.style.display = "none";
+    }
+
+    // 3. Brand Logo / Photo
+    if (args.logo_enabled && args.logo_src) {
+      elLogo.style.display = "block";
+      const imgLogo = document.getElementById("img-logo");
+      imgLogo.src = args.logo_src;
+      const logoW = Math.max(30, Math.min(180, parseInt(args.logo_size || 60)));
+      imgLogo.style.width = logoW + "px";
+      const durEl = document.getElementById("dur-logo");
+      if (args.logo_duration > 0) {
+        durEl.style.display = "inline-block";
+        durEl.innerText = `⏱ ${args.logo_duration}s`;
+      } else {
+        durEl.style.display = "none";
+      }
+      imgLogo.onload = () => positionElement(elLogo, state.logo_x, state.logo_y, false);
+      setTimeout(() => positionElement(elLogo, state.logo_x, state.logo_y, false), 10);
+    } else {
+      elLogo.style.display = "none";
+    }
+
+    // 4. Custom Frame
+    if (args.frame_enabled && args.frame_src) {
+      elFrame.style.display = "block";
+      const imgFrame = document.getElementById("img-frame");
+      imgFrame.src = args.frame_src;
+      const durEl = document.getElementById("dur-frame");
+      if (args.frame_duration > 0) {
+        durEl.style.display = "inline-block";
+        durEl.innerText = `⏱ ${args.frame_duration}s`;
+      } else {
+        durEl.style.display = "none";
+      }
+
+      if (state.frame_x === 0 && state.frame_y === 0) {
+        elFrame.style.width = width + "px";
+        elFrame.style.height = height + "px";
+        elFrame.style.left = "0px";
+        elFrame.style.top = "0px";
+      } else {
+        elFrame.style.width = width + "px";
+        elFrame.style.height = height + "px";
+        setTimeout(() => positionElement(elFrame, state.frame_x, state.frame_y, false), 10);
+      }
+    } else {
+      elFrame.style.display = "none";
+    }
+
+    // Update Streamlit iframe height
+    setTimeout(() => {
+      setFrameHeight(height + 65);
+    }, 50);
+  }
+
+  window.addEventListener("message", function(event) {
+    if (event.data && event.data.type === "streamlit:render") {
+      render(event.data.args);
+    }
+  });
+
+  notifyReady();
+</script>
+</body>
+</html>

@@ -49,31 +49,31 @@ Generate a script for a video, depending on the subject of the video.
 8. respond in the same language as the video subject.
 """.strip()
 
-# Claude Code CLI 默认使用编码 agent 的系统提示词，其中大量约束与文案写作
-# 无关，会让脚本和关键词生成偏离要求，因此调用时整体替换掉。
+# Claude Code CLI uses coding agent system prompts by default, with many constraints
+# unrelated to copywriting that deviate script/term generation, so replace it entirely.
 CLAUDE_CODE_SYSTEM_PROMPT = (
     "You are a concise copywriter. Follow the user's instructions and output "
     "format exactly, and output nothing else."
 )
 CLAUDE_CODE_DEFAULT_TIMEOUT = 300.0
-# `--tools ""` 关闭全部内置工具，`--safe-mode` 关闭 CLAUDE.md、skills、hooks、
-# plugins、MCP 等所有用户级定制，同时保持鉴权、模型选择和权限正常工作。
-# 二者需要较新的 CLI；低版本会以 "unknown option" 退出，由调用处转成明确提示。
+# `--tools ""` disables all built-in tools; `--safe-mode` disables CLAUDE.md, skills, hooks,
+# plugins, MCP, and all user customizations, while keeping auth, model selection, and permissions working.
+# Both require a modern CLI; older versions exit with "unknown option", handled explicitly at the call site.
 CLAUDE_CODE_MIN_CLI_VERSION = "2.1.260"
-# 这些环境变量会让 CLI 改用 API Key 或第三方供应商（Bedrock、Vertex、Foundry、
-# Mantle、Gateway 等），从而绕过订阅登录并产生额外计费。逐个列举容易漏项，
-# 而且 CLI 后续还会新增供应商，因此按前缀整类剔除：
-#   ANTHROPIC_*           API Key、Auth Token、Base URL、各家供应商端点和 Profile
-#   CLAUDE_CODE_USE_*     供应商开关
-#   CLAUDE_CODE_SKIP_*_AUTH  跳过供应商鉴权的开关
+# These environment variables cause the CLI to switch to an API Key or third-party provider
+# (Bedrock, Vertex, Foundry, Mantle, Gateway, etc.), bypassing subscription login and incurring extra billing.
+# Enumerate by prefixes to prevent omissions when new providers are added:
+#   ANTHROPIC_*              API Key, Auth Token, Base URL, provider endpoints and Profiles
+#   CLAUDE_CODE_USE_*        Provider switches
+#   CLAUDE_CODE_SKIP_*_AUTH  Switches to skip provider auth
 CLAUDE_CODE_CONFLICTING_ENV_PREFIXES = ("ANTHROPIC_", "CLAUDE_CODE_USE_")
 CLAUDE_CODE_CONFLICTING_ENV_VARS = (
     "AWS_BEARER_TOKEN_BEDROCK",
     "CLAUDE_CODE_GATEWAY_TOKEN_FILE_DESCRIPTOR",
 )
-# 这两类变量不能剔除：
-#   CLAUDE_CODE_OAUTH_TOKEN 是容器内唯一的订阅鉴权方式（不匹配上面的前缀）；
-#   *_CONFIG_DIR 只是指出凭证存放位置，剔除后反而会让已登录的订阅失效。
+# These two categories must be preserved:
+#   CLAUDE_CODE_OAUTH_TOKEN is the only subscription auth method inside containers (does not match the prefix);
+#   *_CONFIG_DIR points to credential storage locations; removing it invalidates existing logged-in subscriptions.
 CLAUDE_CODE_PRESERVED_ENV_VARS = (
     "CLAUDE_CODE_OAUTH_TOKEN",
     "ANTHROPIC_CONFIG_DIR",
@@ -82,7 +82,7 @@ CLAUDE_CODE_PRESERVED_ENV_VARS = (
 
 
 def _is_conflicting_claude_code_env(name: str) -> bool:
-    """判断某个环境变量是否会把 CLI 从订阅登录切换到别的鉴权方式。"""
+    """Determine whether an environment variable switches CLI away from subscription login."""
     if name in CLAUDE_CODE_PRESERVED_ENV_VARS:
         return False
     if name in CLAUDE_CODE_CONFLICTING_ENV_VARS:
@@ -94,17 +94,17 @@ def _is_conflicting_claude_code_env(name: str) -> bool:
 
 def coerce_claude_code_timeout(value, config_key: str = "claude_code_timeout"):
     """
-    把配置里的超时值解析成正的有限秒数。
+    Parse the timeout value in configuration into a positive finite number of seconds.
 
-    TOML 既可能写成 `claude_code_timeout = 300`（int/float），也可能写成
-    `"300"`（字符串），因此不能直接调用 `strip()`。nan / inf 会让
-    `subprocess.run(timeout=...)` 永久阻塞，这里一并拒绝。
+    TOML can specify `claude_code_timeout = 300` (int/float) or `"300"` (str),
+    so do not call `strip()` directly. nan / inf cause `subprocess.run(timeout=...)`
+    to block indefinitely and are rejected here.
     """
     if value is None:
         return CLAUDE_CODE_DEFAULT_TIMEOUT
 
     if isinstance(value, bool):
-        # bool 是 int 的子类，但 True 秒显然不是用户想要的超时配置。
+        # bool is a subclass of int, but True seconds is not a valid timeout.
         raise ValueError(f"{config_key} must be a number of seconds, got {value!r}")
 
     if isinstance(value, str):
@@ -131,11 +131,11 @@ def coerce_claude_code_timeout(value, config_key: str = "claude_code_timeout"):
 
 def _resolve_provider_field_value(raw_value, default_value):
     """
-    只有「未配置」时才回退到 Registry 默认值。
+    Fallback to Registry default only when unconfigured.
 
-    之前用 `raw or default_value`，会把 0 和 false 这类合法取值也当成未配置
-    替换掉：`claude_code_timeout = 0` 被静默改成 300，而 `"0"` 却报错。默认值
-    只在 None 或空白字符串时生效，配置校验才能对所有写法保持一致。
+    Using `raw or default_value` previously replaced valid falsy values like 0 or false:
+    `claude_code_timeout = 0` was silently changed to 300, while `"0"` raised an error.
+    Defaults should only apply to None or empty strings for consistent validation.
     """
     if raw_value is None:
         return default_value
@@ -146,11 +146,11 @@ def _resolve_provider_field_value(raw_value, default_value):
 
 def build_claude_code_env(base_env=None):
     """
-    构造只依赖订阅登录的子进程环境。
+    Construct a subprocess environment that relies solely on subscription login.
 
-    返回 (环境变量字典, 被剔除的变量名列表)。剔除的是会切换鉴权方式或供应商
-    的变量，`CLAUDE_CODE_OAUTH_TOKEN` 必须保留：容器内没有 keychain，CLI 只能
-    靠它完成订阅鉴权。
+    Returns (env_dict, removed_variable_names). Removes variables that switch auth methods
+    or providers. `CLAUDE_CODE_OAUTH_TOKEN` is preserved: without keychain in containers,
+    the CLI relies on it for subscription authentication.
     """
     env = dict(os.environ if base_env is None else base_env)
     removed = sorted(name for name in env if _is_conflicting_claude_code_env(name))
@@ -160,9 +160,9 @@ def build_claude_code_env(base_env=None):
 
 
 def _normalize_text_response(content, llm_provider: str) -> str:
-    # 不同 LLM SDK 在异常或被拦截场景下，可能返回 None、空字符串，
-    # 甚至返回非字符串对象。这里统一做兜底校验，避免后续直接调用
-    # `.replace()` 时抛出 `NoneType` 之类的属性错误。
+    # Different LLM SDKs may return None, empty strings, or even non-string objects
+    # on errors or moderation interception. Guard against these to prevent attribute errors
+    # like NoneType has no attribute 'replace'.
     if content is None:
         raise ValueError(f"[{llm_provider}] returned empty text content")
 
@@ -171,27 +171,27 @@ def _normalize_text_response(content, llm_provider: str) -> str:
             f"[{llm_provider}] returned non-text content: {type(content).__name__}"
         )
 
-    # MiniMax M3、DeepSeek R1 这类 reasoning 模型可能会把内部推理包在
-    # `<think>...</think>` 中返回。视频脚本和关键词只需要最终可朗读文本，
-    # 如果不在服务层统一清理，WebUI、字幕和配音都会把思考过程当正文处理。
+    # Reasoning models such as MiniMax M3 or DeepSeek R1 may wrap thoughts in
+    # `<think>...</think>`. Narration scripts and search terms only need the final speakable text;
+    # clean it up here to prevent thinking traces entering WebUI, subtitles, and TTS.
     content = _THINK_BLOCK_RE.sub("", content)
     content = _UNCLOSED_THINK_BLOCK_RE.sub("", content).strip()
     if not content:
         raise ValueError(f"[{llm_provider}] returned empty text content")
 
-    # 前面的 ``strip()`` 已经清理首尾空白。这里必须保留正文中的单换行和
-    # 双换行：脚本生成依赖双换行区分段落，字幕处理也会按行读取用户文案。
+    # `strip()` removes leading/trailing whitespace. Single and double newlines within the text
+    # must be preserved: script generation relies on double newlines to separate paragraphs,
+    # and subtitle processors split lines by newlines.
     return content
 
 
 def _sanitize_error_message(error: object) -> str:
     """
-    清理返回给 WebUI/API 的错误信息，避免自定义 base_url 中的凭据泄露。
+    Clean error messages returned to WebUI/API to prevent credential leaks in custom base_url.
 
-    一些 OpenAI-compatible SDK 会把请求 URL 原样拼进异常信息。如果用户为了
-    代理网关配置了 `https://user:pass@example.com/v1`，直接返回 `str(e)`
-    就会把密码暴露给页面、API 调用方或后续日志。这里仅处理错误文案，不改变
-    实际请求地址，避免影响正常调用链路。
+    Some OpenAI-compatible SDKs include the request URL verbatim in exceptions. If a user configured
+    `https://user:pass@example.com/v1`, returning `str(e)` directly exposes passwords to UI, API callers,
+    or logs. This only sanitizes error text without changing the actual request URL.
     """
     message = str(error)
     message = _URL_USERINFO_RE.sub(r"\1***:***@", message)
@@ -200,10 +200,8 @@ def _sanitize_error_message(error: object) -> str:
 
 
 def _extract_chat_completion_text(response, llm_provider: str) -> str:
-    # OpenAI 兼容接口在异常场景下，可能返回没有 choices、
-    # 或者 choices/message/content 为空的响应对象。
-    # 这里统一做结构校验，避免出现 `NoneType is not subscriptable`
-    # 这类底层属性访问错误。
+    # OpenAI-compatible endpoints may return responses without choices or with empty content.
+    # Validate the structure uniformly to avoid 'NoneType is not subscriptable' errors.
     choices = getattr(response, "choices", None)
     if not choices:
         raise ValueError(f"[{llm_provider}] returned empty choices")
@@ -218,7 +216,7 @@ def _extract_chat_completion_text(response, llm_provider: str) -> str:
 
 
 def _get_response_field(value, key: str):
-    """兼容 dict 和 SDK 响应对象的字段读取。"""
+    """Access fields compatibly across dicts and SDK response objects."""
     if isinstance(value, dict):
         return value.get(key)
 
@@ -230,12 +228,11 @@ def _get_response_field(value, key: str):
 
 def _extract_qwen_generation_text(response) -> str:
     """
-    从 DashScope Generation 响应中提取文本。
+    Extract text from DashScope Generation response.
 
-    Qwen 使用 `messages` 调用时返回的是 chat 结构：
-    `output.choices[0].message.content`；旧 completion 形态才会返回
-    `output.text`。这里两个路径都兼容，避免 `output.text` 为 None 时
-    继续 `.replace()` 触发不可诊断的 AttributeError。
+    When Qwen is called with `messages`, it returns chat structure:
+    `output.choices[0].message.content`; older completion responses return `output.text`.
+    Support both paths to prevent AttributeError when output.text is None.
     """
     output = _get_response_field(response, "output")
     choices = _get_response_field(output, "choices") if output else None
@@ -258,9 +255,9 @@ def _generate_response(prompt: str, app_config=None) -> str:
     sdk_client = None
     sdk_stream = None
     try:
-        # WebUI 在视频生成期间允许用户准备下一条文案。调用方可以传入提交瞬间
-        # 的配置快照，确保模型请求重试期间不会因为后台任务结束并应用新配置，
-        # 而切换到另一个 Provider、Base URL 或模型。
+        # WebUI allows users to prepare the next copy while video generation is running.
+        # Callers can pass a configuration snapshot from submission time to prevent retry requests
+        # from switching to another Provider, Base URL, or model if a background task finishes.
         runtime_app_config = app_config if app_config is not None else config.app
         llm_provider = str(
             runtime_app_config.get("llm_provider", DEFAULT_LLM_PROVIDER_ID)
@@ -292,8 +289,9 @@ def _generate_response(prompt: str, app_config=None) -> str:
         adapter = provider.adapter
         api_version = ""
 
-        # Ollama 的默认地址依赖当前是否运行在容器中，无法作为静态 Registry
-        # 值保存；Registry 仍负责模型和必填规则，运行环境差异在这里解析。
+        # Ollama's default host depends on whether it runs inside a container and cannot
+        # be stored statically in Registry; Registry handles models and required rules,
+        # while runtime environment differences are resolved here.
         if llm_provider == "ollama":
             api_key = "ollama"
             if not base_url:
@@ -388,8 +386,8 @@ def _generate_response(prompt: str, app_config=None) -> str:
             )
 
             try:
-                # 新版 google-genai 通过统一 Client 暴露模型服务。上下文管理器
-                # 会在请求结束后关闭底层 HTTP 连接，避免频繁生成时积累连接资源。
+                # Modern google-genai exposes model services through a unified Client.
+                # Context manager closes underlying HTTP connections after requests, avoiding connection leaks during frequent generations.
                 with genai.Client(
                     api_key=api_key,
                     http_options=http_options,
@@ -409,9 +407,9 @@ def _generate_response(prompt: str, app_config=None) -> str:
         if adapter == "cloudflare_ai_gateway":
             account_id = extra_values["account_id"]
             gateway_id = extra_values["gateway_id"]
-            # Cloudflare 当前推荐的 AI Gateway REST API 兼容 OpenAI SDK。
-            # Account ID 用于构造统一端点，Gateway ID 通过请求头选择；这里
-            # 不再调用 Workers AI 的 /ai/run/{model} 专用接口。
+            # Cloudflare's recommended AI Gateway REST API is OpenAI SDK-compatible.
+            # Account ID constructs the endpoint, Gateway ID is selected via request headers;
+            # Workers AI /ai/run/{model} endpoint is not used here.
             client = sdk_client = OpenAI(
                 api_key=api_key,
                 base_url=(
@@ -447,10 +445,10 @@ def _generate_response(prompt: str, app_config=None) -> str:
             return _extract_chat_completion_text(response, llm_provider)
 
         if adapter == "azure":
-            # Azure OpenAI SDK 使用 `azure_endpoint` 和 `api_version` 生成专用请求地址，
-            # 不能继续复用下面普通 OpenAI-compatible 的 `base_url` 初始化逻辑。
-            # 这里在 Azure 分支内完成请求并立即返回，避免客户端被后续 fallback
-            # 覆盖，导致用户配置的 Azure 凭证通过校验但实际请求没有被使用。
+            # Azure OpenAI SDK uses `azure_endpoint` and `api_version` to generate a dedicated URL,
+            # which cannot reuse standard OpenAI-compatible `base_url` logic below.
+            # Complete the request and return immediately within Azure branch to prevent subsequent fallback
+            # from overriding the client and ignoring validated Azure credentials.
             logger.info(f"requesting azure chat completion, model: {model_name}")
             client = sdk_client = AzureOpenAI(
                 api_key=api_key,
@@ -474,10 +472,10 @@ def _generate_response(prompt: str, app_config=None) -> str:
                 )
 
         if adapter == "claude_code":
-            # Claude 订阅（Pro / Max / Team）不签发 API Key，其凭证只能由
-            # Claude Code 官方客户端自己使用。这里不直接请求 Anthropic API，
-            # 而是以 headless 模式调用本机已登录的 claude CLI（`claude -p`），
-            # 由 CLI 完成鉴权，脚本生成只消费它返回的文本。
+            # Claude subscriptions (Pro / Max / Team) do not issue API keys; credentials can only
+            # be used by the official Claude Code client. Instead of querying Anthropic API directly,
+            # invoke the locally authenticated claude CLI in headless mode (`claude -p`).
+            # The CLI handles authentication, and script generation only consumes the returned text.
             configured_cli = (extra_values.get("cli_path") or "").strip() or "claude"
             cli_path = shutil.which(configured_cli)
             if not cli_path and os.path.isfile(configured_cli):
@@ -496,9 +494,8 @@ def _generate_response(prompt: str, app_config=None) -> str:
             except ValueError as timeout_error:
                 raise ValueError(f"{llm_provider}: {timeout_error}") from None
 
-            # prompt 通过 stdin 传入，不放在命令行里：Windows 上 npm 安装的
-            # claude 是 claude.cmd，cmd.exe 会在第一个换行处截断参数，多行
-            # prompt 和其后的隔离参数都会丢失。
+            # Prompt is passed via stdin, not on command line: on Windows npm installs claude as claude.cmd;
+            # cmd.exe truncates arguments at the first newline, losing multiline prompts and trailing isolation flags.
             command = [
                 cli_path,
                 "-p",
@@ -506,29 +503,28 @@ def _generate_response(prompt: str, app_config=None) -> str:
                 "json",
                 "--system-prompt",
                 CLAUDE_CODE_SYSTEM_PROMPT,
-                # 关闭全部内置工具，保证只做文本生成。
+                # Disable all built-in tools to ensure pure text generation.
                 "--tools",
                 "",
-                # 关闭 CLAUDE.md、skills、hooks、plugins、MCP 等用户级定制；
-                # 鉴权与模型选择不受影响（不能用 --bare，它会禁用 OAuth）。
+                # Disable CLAUDE.md, skills, hooks, plugins, MCP, and user customizations;
+                # Auth and model selection remain unaffected (cannot use --bare, which disables OAuth).
                 "--safe-mode",
             ]
-            # 模型名留空时沿用 CLI 自己的默认模型，避免这里硬编码的模型 ID
-            # 随订阅可用模型变化而失效。
+            # When model name is empty, retain CLI default model to avoid breaking on hardcoded model IDs.
             if model_name:
                 command += ["--model", model_name]
 
             cli_env, removed_env = build_claude_code_env()
             if removed_env:
-                # 只记录变量名，不记录取值，避免把密钥写进日志。
+                # Log variable names only, without values, to prevent logging secrets.
                 logger.warning(
                     f"{llm_provider}: ignoring conflicting environment variables "
                     f"so the subscription login is used: {', '.join(removed_env)}"
                 )
 
             logger.info(f"invoking claude cli, model: {model_name or 'cli default'}")
-            # CLI 会读取工作目录下的 CLAUDE.md 和项目设置，这些内容会污染
-            # 文案结果，因此固定在一个临时空目录中执行。
+            # CLI reads CLAUDE.md and project settings in the working directory, which pollutes
+            # copy generation. Run in a temporary empty directory.
             with tempfile.TemporaryDirectory() as work_dir:
                 try:
                     completed = subprocess.run(
@@ -552,9 +548,9 @@ def _generate_response(prompt: str, app_config=None) -> str:
                         f"{timeout_seconds:.0f}s"
                     )
 
-            # 未登录、用量耗尽这类失败同样会返回 JSON（`is_error` 为真，
-            # `result` 是可读原因），只是退出码非 0。因此先解析 stdout，
-            # 只有在拿不到 JSON 时才回退到退出码和 stderr。
+            # Failures like unauthenticated or quota exhausted also return JSON (`is_error` is True,
+            # `result` is human-readable reason), with non-zero exit code. Parse stdout first,
+            # falling back to exit code and stderr only when JSON cannot be parsed.
             stdout = (completed.stdout or "").strip()
             try:
                 payload = json.loads(stdout) if stdout else None
@@ -582,7 +578,7 @@ def _generate_response(prompt: str, app_config=None) -> str:
                 reason = str(payload.get("result") or "").strip() or (
                     f"claude cli exited with code {completed.returncode}"
                 )
-                # 容器里无法执行交互式 /login，这里直接给出可用的鉴权方式。
+                # In containers interactive /login cannot be run; provide actionable auth guidance.
                 if "login" in reason.lower():
                     reason += (
                         " (run `claude setup-token` on the host and pass the token "
@@ -659,11 +655,11 @@ def _generate_response(prompt: str, app_config=None) -> str:
 
 def test_connection() -> tuple[bool, str, float]:
     """
-    使用当前 Provider 配置发起一次最小请求，验证实际生成链路是否可用。
+    Issue a minimal request with current Provider config to verify actual generation pipeline availability.
 
-    连接测试直接复用 `_generate_response()`，因此会覆盖 API Key、Base URL、
-    模型名称和 Provider 专用字段，但不会进入脚本生成的重试逻辑，也不会发送
-    用户的视频主题或文案。返回值依次为成功状态、错误信息和请求耗时。
+    Connection test reuses `_generate_response()`, covering API Key, Base URL, model name,
+    and provider-specific fields, without entering script generation retries or sending user subjects.
+    Returns (success_status, error_message, elapsed_seconds).
     """
     started_at = perf_counter()
     response = _generate_response(prompt="Reply with exactly: OK")
@@ -688,9 +684,8 @@ def _limit_script_text(text: str | None, max_length: int, field_name: str) -> st
     if len(value) <= max_length:
         return value
 
-    # API 层已经用 Pydantic 做长度校验；这里继续兜底，是为了保护
-    # WebUI 或内部服务直接调用 generate_script 时不会把超长提示词发送给模型，
-    # 避免 token 成本异常和请求失败。
+    # API layer validates length with Pydantic; safeguard here so direct calls
+    # from WebUI or internal services do not send oversized prompts to models.
     logger.warning(
         f"{field_name} is too long and will be truncated to {max_length} characters."
     )
@@ -704,8 +699,7 @@ def _normalize_script_paragraph_number(paragraph_number: int | None) -> int:
         value = MIN_SCRIPT_PARAGRAPH_NUMBER
 
     if value < MIN_SCRIPT_PARAGRAPH_NUMBER or value > MAX_SCRIPT_PARAGRAPH_NUMBER:
-        # WebUI 和 API 都会限制范围；这里兜底处理内部调用，避免异常参数直接扩大
-        # LLM 生成成本或生成空结果。
+        # Clamped to prevent invalid parameters from expanding LLM token cost or yielding empty results.
         logger.warning(
             f"script paragraph_number is out of range and will be clamped: {value}"
         )
@@ -729,8 +723,8 @@ def build_script_prompt(
         custom_system_prompt, MAX_SCRIPT_SYSTEM_PROMPT_LENGTH, "custom_system_prompt"
     )
 
-    # 将“脚本生成规则”和“运行时上下文”分开拼接。这样高级用户即使覆盖默认
-    # system prompt，也不会漏掉视频主题、语言、段落数这些每次生成都必须带上的参数。
+    # Splice script rules and runtime context separately so custom system prompts
+    # do not lose required parameters such as video subject, language, and paragraph counts.
     prompt = custom_system_prompt or DEFAULT_SCRIPT_SYSTEM_PROMPT
     prompt += f"""
 
@@ -869,8 +863,8 @@ def generate_terms(
             "6. keep the terms in the same order as the script narration; "
             "earlier terms must describe earlier visual moments."
         )
-        # 有序关键词模式下，示例数量要和 amount 保持一致，避免模型被固定
-        # 的 4 个示例误导，导致长文案只返回少量关键词，影响素材覆盖度。
+        # In ordered search terms mode, match example count to amount so the model is not misled
+        # by a fixed 4-term example to output too few terms for long scripts.
         example_terms = [
             "opening visual topic",
             *[f"script visual topic {index}" for index in range(2, max(amount, 1))],
@@ -927,10 +921,9 @@ Please note that you must use English for generating video search terms; Chinese
             else:
                 response = _generate_response(prompt, app_config=app_config)
             if response.startswith("Error: "):
-                # generate_terms 的公开返回类型是 List[str]。如果把 Provider 的
-                # 错误文案原样返回，下游只做空值判断时会把非空字符串误认为成功，
-                # 素材下载循环还会按字符遍历错误文案，产生无意义的外部请求。
-                # 这里统一返回空列表，让任务编排层在真实故障位置立即结束任务。
+                # Public return type of generate_terms is List[str]. Returning raw provider error text
+                # causes downstream truthy checks to mistake non-empty error strings for success.
+                # Return empty list uniformly so task coordinator aborts immediately at the actual failure.
                 logger.error(f"failed to generate video terms: {response}")
                 return []
             search_terms = json.loads(_strip_code_fence(response))
@@ -942,9 +935,8 @@ Please note that you must use English for generating video search terms; Chinese
                     try:
                         search_terms = json.loads(match.group())
                     except Exception as e:
-                        # 这里保留重试流程，但必须记录 LLM 返回的非标准 JSON，
-                        # 否则后续排查搜索词为空时无法定位
-                        # 是模型格式问题还是解析逻辑问题。
+                        # Log non-standard JSON returned by LLM to facilitate debugging
+                        # whether empty search terms are due to model formatting or parser logic.
                         logger.warning(f"failed to generate video terms: {str(e)}")
 
         # Apply the same contract to direct JSON and prose-wrapped recovery.
@@ -967,12 +959,12 @@ Please note that you must use English for generating video search terms; Chinese
 # =============================================================================
 # Social publishing metadata
 #
-# 根据视频主题和脚本生成发布到短视频平台时常用的 title、caption 和 hashtags。
-# 这块能力只复用现有 LLM provider，不接入任何外部发布服务，也不影响视频生成主链路。
+# Generates title, caption, and hashtags for short video platforms based on video subject and script.
+# Reuses existing LLM provider without external publishing dependencies or affecting video pipeline.
 # =============================================================================
 
-# 不同平台的文案长度和 hashtag 数量偏好不同。这里使用保守上限，避免模型返回
-# 过长内容后调用方还需要二次裁剪。
+# Different platforms prefer different copy lengths and hashtag counts.
+# Use conservative upper limits to prevent callers from needing secondary truncation.
 SOCIAL_PLATFORMS = {
     "tiktok": {"title_max": 100, "caption_max": 2200, "hashtag_count": 5},
     "youtube_shorts": {"title_max": 100, "caption_max": 5000, "hashtag_count": 3},
@@ -992,8 +984,7 @@ SOCIAL_PLATFORM_LABELS = {
     "facebook_reels": "Facebook Reels",
 }
 
-# LLM 不可用时的通用兜底标签。这里故意不绑定某个国家或语种，保证 API
-# 对中文、英文、越南语等不同场景都能返回可用结构。
+# Generic fallback hashtags when LLM is unavailable. Not tied to specific country or language.
 DEFAULT_SOCIAL_HASHTAGS = [
     "#shorts",
     "#viral",
@@ -1027,8 +1018,7 @@ def _limit_social_text(text: str | None, max_length: int, field_name: str) -> st
     if len(value) <= max_length:
         return value
 
-    # API 层会限制长度；这里继续兜底，是为了保护内部调用或未来 WebUI
-    # 直接调用时不会把超长内容发送给模型，避免 token 成本异常。
+    # Safeguard against excessive token consumption if internal/WebUI callers pass oversized text.
     logger.warning(
         f"{field_name} is too long and will be truncated to {max_length} characters."
     )
@@ -1055,17 +1045,15 @@ def _clamp_text(text, max_length: int) -> str:
 
 def _normalize_hashtags(raw, count: int) -> List[str]:
     """
-    将 LLM 返回的 hashtag 统一整理成 `#tag` 格式。
+    Format hashtags returned by LLM into `#tag` style.
 
-    LLM 可能返回字符串、数组、带空格的词组、重复标签或包含标点的内容。
-    这里集中清洗，可以让接口响应结构稳定，也避免平台发布时出现空标签、
-    重复标签或不符合常见格式的 hashtag。
+    LLM may return strings, arrays, phrases with spaces, duplicates, or punctuation.
+    Sanitize here for stable schema responses and valid platform hashtags.
     """
     if isinstance(raw, str):
         candidates = re.split(r"[\s,]+", raw)
     elif isinstance(raw, (list, tuple)):
-        # 数组里的每一项视为一个完整标签，因此 "du lich" 会变成
-        # "#dulich"，而不是拆成两个标签。
+        # Treat each item as a whole tag, so "du lich" becomes "#dulich" rather than two tags.
         candidates = [str(entry) for entry in raw]
     else:
         candidates = []
@@ -1137,8 +1125,8 @@ def _parse_social_metadata(response: str, platform: str) -> dict:
     try:
         data = json.loads(_strip_code_fence(response))
     except Exception:
-        # 部分模型会在 JSON 外层包一段说明文字或 markdown fence。
-        # API 调用方只需要稳定结构，所以这里尝试提取第一个 JSON object。
+        # Some models wrap explanatory text or markdown fences around JSON.
+        # Callers require a stable schema, so attempt to extract the first JSON object.
         match = re.search(r"\{.*\}", response or "", re.DOTALL)
         if match:
             data = json.loads(match.group())
@@ -1165,7 +1153,7 @@ def _fallback_social_metadata(
 
     title = subject
     if not title and script:
-        # 没有主题时，用脚本第一句兜底生成 title，避免接口返回空标题。
+        # If no subject, fallback to the first sentence of the script to avoid empty title.
         title = re.split(r"(?<=[.!?。！？])\s+", script)[0]
 
     return {
@@ -1182,11 +1170,11 @@ def generate_social_metadata(
     platform: str = DEFAULT_SOCIAL_PLATFORM,
 ) -> dict:
     """
-    生成短视频发布文案元数据。
+    Generate short video social publishing metadata.
 
-    返回结构固定为 `{"title": str, "caption": str, "hashtags": List[str]}`。
-    如果 LLM 不可用或返回格式异常，会降级为通用启发式结果，保证 API
-    调用方始终拿到可展示、可发布前编辑的数据结构。
+    Returns a fixed structure: `{"title": str, "caption": str, "hashtags": List[str]}`.
+    If LLM is unavailable or fails format parsing, degrades to heuristic results,
+    ensuring API callers always receive a structured, editable response.
     """
     platform = _resolve_social_platform(platform)
     language = _normalize_social_language(language)
@@ -1227,7 +1215,7 @@ def generate_social_metadata(
 
 
 if __name__ == "__main__":
-    video_subject = "生命的意义是什么"
+    video_subject = "What is the meaning of life"
     script = generate_script(
         video_subject=video_subject, language="zh-CN", paragraph_number=1
     )

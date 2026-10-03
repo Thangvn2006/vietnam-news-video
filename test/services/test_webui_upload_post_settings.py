@@ -18,9 +18,9 @@ def _widget_by_key(elements, key):
 
 
 def test_webui_upload_post_setup_guide_links_to_required_pages():
-    # 首次使用自动发布时，API Key 和发布用户需要在 Upload-Post 的不同页面
-    # 分别配置。这里锁定两个精确入口，避免后续文案调整后再次退化成无法点击的
-    # 泛化提示，导致用户误把登录邮箱当作发布用户名称。
+    # When using automatic publishing for the first time, the API Key and publishing user need to be on different pages of Upload-Post.
+    # Configure separately. Two precise entrances are locked here to prevent subsequent copywriting adjustments from degenerating into unclickable ones.
+    # Generalized prompts, causing users to mistake their login email address for the publishing user name.
     with patch.object(config, "try_save_config", return_value=True):
         app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=60)
         app.run()
@@ -95,7 +95,7 @@ def test_webui_upload_post_youtube_privacy_fallback_to_public():
 
 @pytest.mark.parametrize("saved", [False, True, "false"])
 def test_youtube_audience_selection_persists_on_first_change(saved):
-    """真实运行 Streamlit 控件，验证布尔值、非法配置及第一次切换的持久化。"""
+    """Really run the Streamlit control to verify Boolean values, illegal configurations and persistence of the first switch."""
     values = dict(config.app, upload_post_platforms=["youtube"],
                   upload_post_youtube_made_for_kids=saved)
     with patch.object(config, "app", values), patch.object(config, "try_save_config", return_value=True):
@@ -114,7 +114,7 @@ def test_youtube_audience_selection_persists_on_first_change(saved):
 
 
 def test_youtube_audience_hidden_for_other_platforms():
-    """不选择 YouTube 时不显示受众项，也不覆写已保存的声明。"""
+    """Audience items will not be displayed when YouTube is not selected, and saved claims will not be overwritten."""
     values = dict(config.app, upload_post_platforms=["tiktok", "instagram"],
                   upload_post_youtube_made_for_kids=True)
     with patch.object(config, "app", values), patch.object(config, "try_save_config", return_value=True):

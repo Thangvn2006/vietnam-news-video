@@ -29,6 +29,7 @@ from moviepy import (
 from moviepy.video.tools.subtitles import SubtitlesClip
 from PIL import Image, ImageDraw, ImageFont
 
+from uuid import uuid4
 from app.config import config
 from app.models import const
 from app.models.schema import (
@@ -40,6 +41,7 @@ from app.models.schema import (
     VideoTransitionMode,
 )
 from app.services import bgm as bgm_service
+from app.services import video_template
 from app.services.utils import video_effects
 from app.utils import file_security, logging_utils, utils
 
@@ -70,22 +72,22 @@ class SubClippedVideoClip:
 
 
 audio_codec = "aac"
-# Docker 里的 ffmpeg/AAC 组合在默认配置下更容易出现音频质量波动，
-# 这里显式抬高音频码率，避免成片阶段因为默认值过低而引入明显失真。
+# The ffmpeg/AAC combination in Docker is more prone to audio quality fluctuations under the default configuration.
+# Here, the audio bitrate is explicitly increased to avoid obvious distortion caused by the default value being too low during the production stage.
 audio_bitrate = "192k"
 fps = 30
-# FFmpeg 按帧率拼接/转码时，最终时长可能比 MoviePy 读到的理论时长短几十毫秒。
-# 这里给视频素材多留一个很小的安全余量，避免音频末尾因为帧舍入出现黑屏、
-# 卡顿或最后一小段旁白没有画面的情况。
+# When FFmpeg splices/transcodes at the frame rate, the final duration may be tens of milliseconds shorter than the theoretical duration read by MoviePy.
+# Here, a small safety margin is left for the video material to avoid a black screen or black screen at the end of the audio due to frame rounding.
+# Stuttering or no picture in the last short paragraph of narration.
 _VIDEO_DURATION_SAFETY_MARGIN = 0.1
 _MIN_MATERIAL_DIMENSION = 480
-# 消息类应用和部分编码器会把画面尺寸向下取整，例如 WhatsApp 会把 9:16 的
-# 素材压成 478x850，比 480 少两个像素。直接按 480 硬卡会让这类素材全部被
-# 丢弃，最终以 "no valid materials found" 整体失败。这里留一个很小的容差，
-# 既能放行仅仅因为取整而略低于阈值的素材，也仍然能挡住真正的低清素材。
+# Messaging apps and some encoders will round down the screen size. For example, WhatsApp will round down the 9:16
+# The material is compressed to 478x850, which is two pixels less than 480. Directly pressing the 480 hard card will cause all such materials to be
+# Discarded and ultimately failed overall with "no valid materials found". Leave a small tolerance here,
+# It can not only pass the material that is slightly lower than the threshold due to rounding, but also still block the real low-definition material.
 _MIN_DIMENSION_TOLERANCE = 10
-# 默认串行处理片段，避免旧用户升级后 CPU 和内存占用突然增加。
-# 需要加速时可自行提高并发数，但每路都会启动独立的编码任务。
+# By default, fragments are processed serially to avoid a sudden increase in CPU and memory usage after old users upgrade.
+# You can increase the number of concurrencies by yourself when you need to speed up, but each channel will start an independent encoding task.
 _CLIP_PROCESSING_CONCURRENCY = 1
 
 
@@ -96,11 +98,11 @@ def _get_clip_processing_concurrency() -> int:
         concurrency = _CLIP_PROCESSING_CONCURRENCY
     return max(1, min(8, concurrency))
 _DEFAULT_VIDEO_CODEC = "libx264"
-# ffmpeg 串联片段期间没有阶段日志，`subprocess.run` 又阻塞到进程退出，耗时拼接在
-# 日志上表现为“无输出”。这里按间隔记录存活信息，便于区分编码中与已经卡死。
+# There is no stage log during ffmpeg concatenation of fragments, `subprocess.run` is blocked until the process exits, and the splicing is time-consuming.
+# The log shows "no output". Survival information is recorded here at intervals to facilitate distinguishing between encoding and stuck.
 _FFMPEG_CONCAT_HEARTBEAT_SECONDS = 30.0
-# MoviePy 写出最终成片时同样没有任何日志，一分钟的竖屏视频在 CPU 上要编码数
-# 分钟。沿用拼接阶段的做法，按间隔记录存活信息。
+# MoviePy also does not have any logs when writing the final film. A one-minute vertical video requires several encodings on the CPU.
+# minutes. Following the splicing phase, survival information is recorded at intervals.
 _STAGE_HEARTBEAT_SECONDS = 30.0
 _DEFAULT_FFMPEG_CONCAT_TIMEOUT_SECONDS = 3600
 _SUBTITLE_SPRING_DURATION_SECONDS = 0.18
@@ -118,7 +120,7 @@ _runtime_disabled_video_codecs = set()
 
 
 def _get_subtitle_spring_scale(time_seconds: float, duration_seconds: float) -> float:
-    """返回字幕弹跳动画在指定时间点使用的缩放比例。"""
+    """Returns the scaling ratio used by the subtitle bounce animation at the specified time point."""
     if duration_seconds <= 0 or time_seconds >= duration_seconds:
         return 1.0
 
@@ -132,11 +134,11 @@ def _get_subtitle_spring_scale(time_seconds: float, duration_seconds: float) -> 
 
 def _scale_subtitle_frame_on_canvas(frame: np.ndarray, scale: float) -> np.ndarray:
     """
-    在保持画布尺寸不变的前提下，围绕中心缩放字幕画面或透明蒙版。
+    Scale the title frame or transparency mask around the center while maintaining the same canvas dimensions.
 
-    MoviePy 将字幕颜色帧和透明蒙版分开保存。弹跳动画必须对二者使用完全
-    相同的缩放与裁剪，否则动画首帧会把透明区域当成黑色文字轮廓合成到视频
-    上。二维数组表示取值为 0～1 的蒙版，三维数组表示 RGB/RGBA 颜色帧。
+    MoviePy saves subtitle color frames and transparency masks separately. The bounce animation must be used completely for both
+    The same scaling and cropping, otherwise the first frame of the animation will treat the transparent area as a black text outline and synthesize it into the video
+    On. The two-dimensional array represents the mask with a value of 0 to 1, and the three-dimensional array represents the RGB/RGBA color frame.
     """
     if frame.ndim not in (2, 3):
         raise ValueError("subtitle frame must be a 2D mask or 3D color frame")
@@ -147,8 +149,8 @@ def _scale_subtitle_frame_on_canvas(frame: np.ndarray, scale: float) -> np.ndarr
     offset = ((width - scaled_width) // 2, (height - scaled_height) // 2)
 
     if frame.ndim == 2:
-        # MoviePy 蒙版使用 0～1 浮点数，Pillow 的 L 模式使用 0～255；转换后
-        # 再恢复原始类型和范围，确保 CompositeVideoClip 的透明度语义不变。
+        # MoviePy masks use floating point numbers from 0 to 1, and Pillow’s L mode uses 0 to 255; after conversion
+        # Then restore the original type and scope to ensure that the transparency semantics of CompositeVideoClip remain unchanged.
         mask_image = Image.fromarray(
             np.clip(frame * 255.0, 0, 255).astype(np.uint8)
         )
@@ -174,7 +176,7 @@ def _scale_subtitle_frame_on_canvas(frame: np.ndarray, scale: float) -> np.ndarr
 
 
 def _apply_subtitle_spring_animation(clip, subtitle_duration: float):
-    """同时缩放字幕颜色帧与蒙版，避免弹跳动画出现黑色首帧。"""
+    """Scale the subtitle color frame and mask at the same time to avoid the black first frame of the bouncing animation."""
     animation_duration = min(
         _SUBTITLE_SPRING_DURATION_SECONDS,
         max(0.0, subtitle_duration),
@@ -189,28 +191,28 @@ def _apply_subtitle_spring_animation(clip, subtitle_duration: float):
             return frame
         return _scale_subtitle_frame_on_canvas(frame, scale)
 
-    # apply_to=["mask"] 是修复的关键：MoviePy 默认只处理颜色帧，旧实现因此
-    # 在每条字幕出现时短暂保留原尺寸蒙版，并显示黑色文字轮廓。
+    # apply_to=["mask"] is the key to the fix: MoviePy only handles color frames by default, the old implementation therefore
+    # Briefly retain the original size of the mask when each subtitle appears, and display a black text outline.
     return clip.transform(transform_frame, apply_to=["mask"])
 
 
 def _get_required_video_duration(audio_duration: float) -> float:
     """
-    返回视频素材拼接的目标时长。
+    Returns the target duration of video material splicing.
 
-    使用场景：合成视频时需要素材时长覆盖旁白音频。只做到“刚好等于”
-    音频时长时，FFmpeg 可能因为帧率舍入让最终视频略短，因此统一加一个
-    轻量余量。函数独立出来，便于测试和后续按实际反馈调整余量大小。
+    Usage scenario: When compositing a video, the duration of the material needs to cover the narration audio. Just do it "just equal to"
+    When it comes to audio duration, FFmpeg may make the final video slightly shorter due to frame rate rounding, so it adds one
+    Lightweight margin. The function is independent, which facilitates testing and subsequent adjustment of the margin size based on actual feedback.
     """
     return max(0.0, float(audio_duration) + _VIDEO_DURATION_SAFETY_MARGIN)
 
 
 def is_material_resolution_acceptable(width: int, height: int) -> bool:
     """
-    判断素材分辨率是否足够用于合成。
+    Determine whether the material resolution is sufficient for compositing.
 
-    标称最小值是 480x480，但允许比它低 `_MIN_DIMENSION_TOLERANCE` 个像素，
-    以兼容编码器/消息应用向下取整导致的尺寸（例如 WhatsApp 的 478x850）。
+    The nominal minimum is 480x480, but `_MIN_DIMENSION_TOLERANCE` pixels below that are allowed,
+    Dimensions rounded down by compatible encoders/messaging apps (e.g. 478x850 for WhatsApp).
     """
     min_dimension = _MIN_MATERIAL_DIMENSION - _MIN_DIMENSION_TOLERANCE
     return width >= min_dimension and height >= min_dimension
@@ -223,14 +225,14 @@ def _prioritize_unique_source_clips(
     source_groups: dict[str, str] | None = None,
 ) -> List[SubClippedVideoClip]:
     """
-    优先让每个源素材只出现一次，降低成片里同一素材反复出现的概率。
+    Prioritize that each source material appears only once to reduce the probability of the same material appearing repeatedly in the finished film.
 
-    线上素材经常会遇到“一个长视频被切成多个短片段”的情况。旧逻辑在
-    random 模式下直接打乱所有短片段，导致同一个源视频的多个切片可能
-    分布在开头和中间，用户会感知为素材重复。本函数只调整片段顺序：
-    先放每个源文件里最长的一个片段，剩余片段作为兜底；当素材总时长不足时，
-    仍然允许后续片段补齐音频长度，避免破坏视频生成成功率。优先选择最长
-    片段是为了避免随机选中视频尾部的零碎短片段，导致明明有足够素材却过早复用。
+    Online materials often encounter the situation of "a long video being cut into multiple short clips". The old logic is
+    In random mode, all short clips are directly scrambled, resulting in multiple slices of the same source video.
+    Distributed at the beginning and middle, users will perceive the material as repeated. This function only adjusts the fragment order:
+    Play the longest clip in each source file first, and use the remaining clips as a backup; when the total duration of the material is insufficient,
+    Subsequent segments are still allowed to complete the audio length to avoid damaging the success rate of video generation. Prioritize the longest
+    The purpose of clipping is to avoid randomly selecting fragmentary short clips at the end of the video, resulting in premature reuse even though there is enough material.
     """
     if not subclipped_items:
         return []
@@ -286,22 +288,22 @@ def _prioritize_unique_source_clips(
 
 def get_ffmpeg_binary():
     """
-    兼容历史上直接从 video 服务读取 FFmpeg 路径的调用方。
+    Compatible with callers that historically read FFmpeg paths directly from the video service.
 
-    真正的解析逻辑已经抽到 `app.utils.utils.get_ffmpeg_binary()`，视频、语音
-    和后续新增链路都应复用同一套优先级；这里保留薄包装，避免外部脚本或
-    旧测试直接导入 `app.services.video.get_ffmpeg_binary` 时出现 AttributeError。
+    The real parsing logic has been extracted to `app.utils.utils.get_ffmpeg_binary()`, video, voice
+    The same set of priorities should be reused with subsequent new links; thin packaging is retained here to avoid external scripts or
+    Old tests raised AttributeError when importing `app.services.video.get_ffmpeg_binary` directly.
     """
     return utils.get_ffmpeg_binary()
 
 
 def _get_configured_video_codec() -> str:
     """
-    读取用户配置的视频编码器。
+    Read the user configured video encoder.
 
-    该配置面向高级用户，用于尝试启用 NVENC/AMF/QSV/VideoToolbox 等硬件
-    编码。这里刻意只允许固定白名单，避免开放任意 FFmpeg 参数后，用户填错
-    参数导致输出格式不可控，甚至让生成任务在后续阶段才失败。
+    This configuration is for advanced users trying to enable hardware such as NVENC/AMF/QSV/VideoToolbox
+    Encoding. Only a fixed whitelist is deliberately allowed here to avoid users filling in errors after opening any FFmpeg parameters.
+    Parameters cause the output format to be uncontrollable, and even cause the generation task to fail in subsequent stages.
     """
     configured_codec = str(
         config.app.get("video_codec", _DEFAULT_VIDEO_CODEC) or _DEFAULT_VIDEO_CODEC
@@ -318,10 +320,10 @@ def _get_configured_video_codec() -> str:
 @lru_cache(maxsize=16)
 def _ffmpeg_encoder_exists(ffmpeg_binary: str, codec: str) -> bool:
     """
-    检查当前 FFmpeg 是否声明支持指定编码器。
+    Check whether the current FFmpeg declares support for the specified encoder.
 
-    这只能证明 FFmpeg 编译时包含该 encoder，不能证明当前机器硬件和驱动
-    一定可用。因此实际编码失败时仍会再回退到 libx264。
+    This can only prove that FFmpeg includes this encoder when compiling, but cannot prove the current machine hardware and driver.
+    Must be available. Therefore, it will still fall back to libx264 when the actual encoding fails.
     """
     try:
         result = subprocess.run(
@@ -351,10 +353,10 @@ def _ffmpeg_encoder_exists(ffmpeg_binary: str, codec: str) -> bool:
 
 def _get_effective_video_codec(preferred_codec: str | None = None) -> str:
     """
-    返回本次实际使用的视频编码器。
+    Returns the actual video encoder used this time.
 
-    用户选择硬件编码器时，先做 FFmpeg encoder 列表检测；如果本进程里已经
-    实际编码失败过，也直接回退，避免一个任务里每个片段都重复失败。
+    When the user selects a hardware encoder, first perform FFmpeg encoder list detection; if this process already
+    If the actual encoding fails, it will be rolled back directly to avoid repeated failures for every segment in a task.
     """
     selected_codec = preferred_codec or _get_configured_video_codec()
     if selected_codec == _DEFAULT_VIDEO_CODEC:
@@ -408,11 +410,11 @@ def _get_temp_audio_dir(output_dir: str) -> str:
 
 def _fallback_write_videofile(clip, output_file: str, failed_codec: str, reason: str, **kwargs):
     """
-    硬件编码失败后用 libx264 重试，只有重试成功才禁用该硬件编码器。
+    After the hardware encoding fails, try again with libx264. The hardware encoder will be disabled only if the retry is successful.
 
-    Windows 上 FFmpeg 失败原因比较复杂：可能是显卡/驱动不支持，也可能是输出
-    文件被占用、目录权限、杀软拦截等通用 IO 问题。只有 libx264 能成功写出时，
-    才能判断原始失败大概率来自硬件编码器本身，避免误伤后续任务。
+    The reason why FFmpeg fails on Windows is more complicated: it may be that the graphics card/driver does not support it, or it may be the output
+    General IO issues such as file occupation, directory permissions, and anti-virus software interception. When only libx264 can successfully write,
+    Only then can we determine that the original failure most likely came from the hardware encoder itself to avoid accidentally damaging subsequent tasks.
     """
     clip.write_videofile(output_file, codec=_DEFAULT_VIDEO_CODEC, **kwargs)
     _disable_runtime_video_codec(failed_codec, reason)
@@ -423,10 +425,10 @@ def _write_videofile_with_codec_fallback(
     clip, output_file: str, codec: str, atomic_output: bool = False, **kwargs
 ):
     """
-    使用指定编码器写出视频，失败时自动用 libx264 重试一次。
+    Write the video using the specified encoder, and automatically try again with libx264 if it fails.
 
-    硬件编码器是否可用不仅取决于 FFmpeg，还取决于显卡、驱动和当前运行环境。
-    生成任务不能因为高级编码器不可用而整体失败，所以这里把回退集中处理。
+    Whether a hardware encoder is available depends not only on FFmpeg, but also on the graphics card, driver, and current running environment.
+    The generation task cannot fail as a whole because the advanced encoder is unavailable, so the fallback is handled centrally here.
     """
     if atomic_output:
         # Final videos can be downloaded by path while they are being rendered.
@@ -473,28 +475,28 @@ def _write_videofile_with_codec_fallback(
 
 
 def _escape_ffmpeg_concat_path(file_path: str) -> str:
-    # concat demuxer 使用单引号包裹路径，路径中的单引号需要先转义。
+    # concat demuxer uses single quotes to wrap the path, and the single quotes in the path need to be escaped first.
     return file_path.replace("'", "'\\''")
 
 
 def _format_ffmpeg_concat_path(file_path: str) -> str:
     """
-    生成 concat demuxer 文件列表中的路径。
+    Generate paths in the concat demuxer file list.
 
-    FFmpeg 官方文档要求 concat list 中的特殊字符和空格需要转义；Windows
-    绝对路径里的反斜杠也容易被解析成转义字符。这里统一转成正斜杠形式，
-    让 `C:\\Users\\...` 变成 `C:/Users/...`，再处理单引号，兼容 macOS/Linux。
+    FFmpeg official documentation requires that special characters and spaces in concat list need to be escaped; Windows
+    Backslashes in absolute paths are also easily parsed as escape characters. Here it is uniformly converted into forward slash form.
+    Let `C:\\Users\\...` become `C:/Users/...`, and then process single quotes, compatible with macOS/Linux.
     """
     absolute_path = os.path.abspath(file_path)
     return _escape_ffmpeg_concat_path(absolute_path.replace("\\", "/"))
 
 
 def _describe_concat_output_progress(output_file: str) -> str:
-    """返回输出文件当前大小的可读描述，用于拼接心跳日志。"""
+    """Returns a human-readable description of the current size of the output file, used for splicing heartbeat logs."""
     try:
         size = os.path.getsize(output_file)
     except OSError:
-        # 输出文件尚未创建时同样要安全降级，不能影响拼接本身。
+        # When the output file has not yet been created, it must also be safely downgraded without affecting the splicing itself.
         return "output size not available"
     return f"output size: {size / (1024 * 1024):.2f} MB"
 
@@ -502,11 +504,11 @@ def _describe_concat_output_progress(output_file: str) -> str:
 @contextmanager
 def _stage_heartbeat(description: str):
     """
-    在一个没有自身日志的耗时阶段期间，按间隔记录存活日志。
+    Keep alive logs recorded at intervals during a time-consuming phase that has no logs of its own.
 
-    心跳线程绑定到进入该阶段的线程，日志才会出现在所属任务的 WebUI 面板。
-    阶段结束或抛出异常时停止并等待心跳线程退出，避免阶段已经结束后仍然
-    写出“still running”。
+    The heartbeat thread is bound to the thread entering this stage, and the log will appear in the WebUI panel of the task to which it belongs.
+    When the stage ends or an exception is thrown, stop and wait for the heartbeat thread to exit to avoid continuing after the stage has ended.
+    Write "still running".
     """
     started_at = time.monotonic()
     stop_event = threading.Event()
@@ -534,7 +536,7 @@ def _report_clip_progress(
     covered_duration: float,
     required_duration: float,
 ) -> None:
-    """把已覆盖的成片时长换算成 0~1 的比例并通知调用方。"""
+    """Convert the covered film duration into a ratio of 0~1 and notify the caller."""
     if progress_callback is None:
         return
     fraction = 1.0
@@ -543,8 +545,8 @@ def _report_clip_progress(
     try:
         progress_callback(fraction)
     except Exception as exc:
-        # 进度只是展示信息。回调失败（例如状态后端暂时不可用）不能让已经
-        # 处理好的片段作废。
+        # Progress is just a display of information. A failed callback (e.g. the status backend is temporarily unavailable) must not allow the already
+        # The processed fragments are invalid.
         logger.warning(
             "failed to report clip processing progress: "
             f"error={type(exc).__name__}, detail={exc}"
@@ -553,10 +555,10 @@ def _report_clip_progress(
 
 def _run_concat_with_heartbeat(command: list[str], output_file: str):
     """
-    阻塞等待 ffmpeg 完成，期间按间隔记录存活日志。
+    Blocks and waits for ffmpeg to complete, during which survival logs are recorded at intervals.
 
-    ffmpeg 串联片段时没有阶段日志，`subprocess.run` 又把输出缓冲到进程退出，耗时拼接
-    在日志上表现为“无输出”。记录已等待时长与输出文件大小，便于区分仍在编码与已经卡死。
+    There is no stage log when ffmpeg concatenates fragments, and `subprocess.run` buffers the output until the process exits, which makes splicing time-consuming.
+    It appears as "no output" in the log. Record the waiting time and output file size to distinguish between still encoding and stuck.
     """
     started_at = time.monotonic()
     stop_event = threading.Event()
@@ -658,8 +660,8 @@ def concat_video_clips_with_ffmpeg(
 
     def run_concat(codec: str):
         command = build_command(codec)
-        # 使用 ffmpeg 只做一次串联与编码，避免 MoviePy 逐段合并时反复重编码，
-        # 从而降低画质劣化与颜色偏移风险。阻塞等待期间由心跳日志体现任务仍在运行。
+        # Use ffmpeg to concatenate and encode only once to avoid repeated re-encoding when merging MoviePy segment by segment.
+        # This reduces the risk of image quality degradation and color shift. During the blocking wait period, the heartbeat log reflects that the task is still running.
         result = _run_concat_with_heartbeat(command, staged_output)
         if result.returncode != 0:
             error_message = (result.stderr or result.stdout or "").strip()
@@ -696,14 +698,14 @@ def concat_video_clips_with_ffmpeg(
 
 
 def _sanitize_image_file(image_path: str) -> str:
-    # 某些本地图片虽然能被 Pillow 打开，但会因为损坏的 EXIF/eXIf 元数据导致
-    # ImageClip 在解析阶段直接抛异常。这里重新导出一份“干净图片”，把坏元数据剥离掉。
+    # Although some local images can be opened by Pillow, they will be damaged due to corrupted EXIF/eXIf metadata.
+    # ImageClip throws an exception directly during the parsing phase. Here, re-export a "clean image" and strip off the bad metadata.
     image_root, _ = os.path.splitext(image_path)
     sanitized_path = f"{image_root}.sanitized.png"
 
     with Image.open(image_path) as image:
         image.load()
-        # 统一导出为 PNG，避免 JPEG/PNG 不同元数据路径继续把坏块带过去。
+        # Export to PNG uniformly to avoid the different metadata paths of JPEG/PNG from continuing to bring bad blocks.
         cleaned_image = Image.new(image.mode, image.size)
         cleaned_image.putdata(list(image.getdata()))
         cleaned_image.save(sanitized_path)
@@ -712,7 +714,7 @@ def _sanitize_image_file(image_path: str) -> str:
 
 
 def _open_image_clip_with_fallback(image_path: str):
-    # 优先直接打开原始图片；如果因为损坏元数据失败，再尝试生成无元数据副本。
+    # Priority is given to opening the original image directly; if it fails due to damaged metadata, try to generate a copy without metadata.
     try:
         return ImageClip(image_path), image_path
     except Exception as exc:
@@ -728,19 +730,19 @@ _moviepy_reader_open_lock = threading.Lock()
 
 def _open_video_clip_quietly(video_path: str, audio: bool = False) -> VideoFileClip:
     """
-    安静地打开视频文件，避免 MoviePy 2.1.x 把 ffmpeg 探测信息直接打印到 stdout。
+    Open video files silently to prevent MoviePy 2.1.x from printing ffmpeg probe information directly to stdout.
 
-    背景：
-    当前依赖版本的 `FFMPEG_VideoReader` 内部存在 `print(self.infos)` 和
-    `print(ffmpeg command)`，读取无音轨的中间视频时会输出
-    `audio_found: False`。这只是输入素材 metadata，不代表最终成片没有音频，
-    但会误导 WebUI/终端用户以为生成失败。
+    Background:
+    The current dependent version of `FFMPEG_VideoReader` internally contains `print(self.infos)` and
+    `print(ffmpeg command)`, will be output when reading the middle video without audio track
+    `audio_found: False`. This is just input material metadata, it does not mean that the final film will have no audio.
+    But it will mislead the WebUI/end user into thinking that the build failed.
 
-    实现：
-    1. 只在打开 VideoFileClip 的短窗口内重定向 stdout；
-    2. 默认 `audio=False`，因为项目视频素材阶段不需要保留素材原声，
-       最终音频会在 `generate_video()` 阶段统一挂载；
-    3. 如果依赖库确实输出了内容，降级为 debug 日志，便于必要时排查。
+    Implementation:
+    1. Redirect stdout only within the short window that opens VideoFileClip;
+    2. Default `audio=False`, because the original sound of the material does not need to be preserved in the video material stage of the project.
+       The final audio will be mounted uniformly in the `generate_video()` stage;
+    3. If the dependent library does output content, downgrade it to debug log to facilitate troubleshooting if necessary.
     """
     captured_stdout = io.StringIO()
     # redirect_stdout changes process-wide state. Overlapping reader opens can
@@ -801,20 +803,20 @@ def delete_files(files: List[str] | str):
     if isinstance(files, str):
         files = [files]
 
-    # 循环补足视频时，同一个临时片段路径会在 FFmpeg 拼接列表中出现多次。
-    # 拼接必须保留重复项，但清理只能删除一次；这里按原顺序统一去重，让所有
-    # 调用方都获得幂等行为，也避免首次删除成功后连续输出 FileNotFoundError。
+    # When looping through video, the same temporary clip path appears multiple times in the FFmpeg splice list.
+    # Duplicates must be retained during splicing, but cleaning can only be deleted once; here, the duplicates are removed in the original order, so that all
+    # The caller gets idempotent behavior and avoids continuously outputting FileNotFoundError after the first deletion is successful.
     unique_files = dict.fromkeys(file for file in files if file)
     for file in unique_files:
         try:
             os.remove(file)
         except FileNotFoundError:
-            # 清理动作允许文件已经不存在，例如 FFmpeg 失败路径或并发清理已经
-            # 回收文件；这不是需要用户处理的问题，不应污染生成日志。
+            # Cleanup actions allow files that no longer exist, such as FFmpeg failed path or concurrent cleanup has
+            # Recycle files; this is not a user-related issue and should not pollute the build log.
             continue
         except OSError as e:
-            # 权限、只读文件系统或磁盘异常会留下真实临时文件，保留 warning
-            # 便于根据具体路径和系统错误定位环境问题。
+            # Permissions, read-only file system or disk exceptions will leave real temporary files and keep warning
+            # It is convenient to locate environmental problems based on specific paths and system errors.
             logger.warning(f"failed to delete temporary file {file}: {str(e)}")
 
 
@@ -826,8 +828,8 @@ def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
         try:
             resolved_bgm_file = bgm_service.resolve_bgm_file(bgm_file)
         except ValueError as exc:
-            # API 请求里的 bgm_file 来自用户输入，只允许解析到用户 BGM 或内置
-            # 歌曲目录，阻止 MoviePy 读取配置、密钥等任意服务器文件。
+            # The bgm_file in the API request comes from user input and is only allowed to be parsed into user BGM or built-in
+            # Song directory, preventing MoviePy from reading any server files such as configurations and keys.
             logger.warning(
                 f"reject unsafe bgm file: {bgm_file}, error: {str(exc)}"
             )
@@ -836,7 +838,7 @@ def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
 
     if bgm_type == "random":
         files = bgm_service.list_bgm_files()
-        # 当背景音乐目录为空时，直接回退为“不使用 BGM”，避免 random.choice([]) 抛异常。
+        # When the background music directory is empty, it will directly fall back to "no BGM" to avoid random.choice([]) throwing exceptions.
         if not files:
             logger.warning("no background music files found")
             return ""
@@ -924,8 +926,8 @@ def combine_videos(
 ) -> str:
     audio_clip = AudioFileClip(audio_file)
     try:
-        # 这里只需要读取旁白音频时长来决定素材视频拼接长度；后续不会再使用
-        # audio_clip。读取完成后立即关闭，避免早退或异常路径泄漏文件句柄。
+        # Here you only need to read the duration of the narration audio to determine the length of the material video splicing; it will not be used again later.
+        # audio_clip. Close immediately after reading is completed to avoid early exit or abnormal path leakage of file handles.
         audio_duration = audio_clip.duration
     finally:
         close_clip(audio_clip)
@@ -937,18 +939,18 @@ def combine_videos(
         f"(audio duration + {_VIDEO_DURATION_SAFETY_MARGIN:.2f}s safety margin)"
     )
 
-    # 兼容 API 直接调用时未传转场模式的情况，避免后续访问 .value 时崩溃。
+    # Compatible with the situation where the transition mode is not passed when calling the API directly, to avoid crashes when subsequently accessing .value.
     transition_value = getattr(video_transition_mode, "value", video_transition_mode)
     normalized_clip_speed = utils.normalize_clip_speed(clip_speed)
     if normalized_clip_speed != 1.0:
-        # 只记录一次最终生效值，既方便定位 API 越界参数被归一化的问题，
-        # 也避免在逐片段热路径中重复输出相同日志。
+        # Only recording the final effective value once is convenient for locating the problem of normalization of API out-of-bounds parameters.
+        # Also avoids repeatedly outputting the same logs in per-fragment hot paths.
         logger.info(f"clip playback speed: {normalized_clip_speed:.2f}x")
-    # max_clip_duration 约束的是成片里的最终播放时长，而不是源视频读取时长。
-    # MoviePy 以 0.5 倍速播放 1.5 秒源画面会得到 3 秒片段，以 2 倍速播放
-    # 6 秒源画面同样会得到 3 秒片段。因此切片前必须按速度反推源时长；如果
-    # 仍固定读取 3 秒再慢放、裁剪，下一段却从源视频第 3 秒开始，会跳过中间
-    # 1.5 秒画面。该计算同时保证不同速度下的源时间线连续且无重叠。
+    # max_clip_duration restricts the final playback time in the finished film, not the source video reading time.
+    # MoviePy plays 1.5 seconds of source footage at 0.5x speed and will get a 3 second clip, played at 2x speed
+    # A 6 second source footage will also result in a 3 second clip. Therefore, the source duration must be deduced according to the speed before slicing; if
+    # It still reads for 3 seconds before slowing down and cropping, but the next segment starts from the 3rd second of the source video and the middle is skipped.
+    # 1.5 seconds of footage. This calculation also ensures that the source timelines at different speeds are continuous and non-overlapping.
     source_clip_duration = max_clip_duration * normalized_clip_speed
     output_dir = os.path.dirname(combined_video_path)
 
@@ -987,9 +989,9 @@ def combine_videos(
         while start_time < clip_duration:
             end_time = min(start_time + source_clip_duration, clip_duration)
 
-            # 保留所有有效分段。
-            # 这样既不会丢掉“整段视频本身就短于 max_clip_duration”的素材，
-            # 也不会吞掉长视频最后剩下的一小段尾部内容。
+            # Keep all valid segments.
+            # This will not lose the material that "the entire video itself is shorter than max_clip_duration".
+            # It won’t swallow up the small piece of tail content left at the end of a long video.
             if end_time > start_time:
                 subclipped_items.append(
                     SubClippedVideoClip(
@@ -1017,7 +1019,7 @@ def combine_videos(
     
     # Add downloaded clips over and over until the duration of the audio (max_duration) has been reached
     def process_one_clip(indexed_item):
-        """把一个源片段裁剪、变速、转场后写出，失败时返回 None。"""
+        """Write out a source clip after trimming, changing speed, and transitioning. Returns None on failure."""
         index, subclipped_item = indexed_item
         source_clip = None
         clip = None
@@ -1031,9 +1033,9 @@ def combine_videos(
             clip = source_clip.subclipped(
                 subclipped_item.start_time, subclipped_item.end_time
             )
-            # 播放速度属于素材本身属性，应在转场前应用。这样 Fade/Slide 等一秒转场
-            # 不会跟随素材速度变成 0.5 秒或 2 秒；后续最大时长裁剪继续作为
-            # 浮点误差或异常素材时长的安全兜底，保证最终片段不突破配置上限。
+            # Playback speed is a property of the material itself and should be applied before transition. This way Fade/Slide waits for one second to transition.
+            # It will not follow the material speed to 0.5 seconds or 2 seconds; subsequent maximum duration cropping will continue as
+            # A safe margin for floating point errors or abnormal material duration to ensure that the final clip does not exceed the configuration limit.
             if normalized_clip_speed != 1.0:
                 clip = clip.with_speed_scaled(normalized_clip_speed)
             # Normalize every source clip before transitions are applied. In cover mode
@@ -1065,6 +1067,18 @@ def combine_videos(
                 clip = video_effects.slidein_transition(clip, 1, shuffle_side)
             elif transition_value == VideoTransitionMode.slide_out.value:
                 clip = video_effects.slideout_transition(clip, 1, shuffle_side)
+            elif transition_value == VideoTransitionMode.slide_in_left.value:
+                clip = video_effects.slidein_transition(clip, 1, "left")
+            elif transition_value == VideoTransitionMode.slide_in_right.value:
+                clip = video_effects.slidein_transition(clip, 1, "right")
+            elif transition_value == VideoTransitionMode.slide_in_top.value:
+                clip = video_effects.slidein_transition(clip, 1, "top")
+            elif transition_value == VideoTransitionMode.slide_in_bottom.value:
+                clip = video_effects.slidein_transition(clip, 1, "bottom")
+            elif transition_value == VideoTransitionMode.pan_left.value:
+                clip = video_effects.pan_left_transition(clip, 1)
+            elif transition_value == VideoTransitionMode.pan_right.value:
+                clip = video_effects.pan_right_transition(clip, 1)
             elif transition_value == VideoTransitionMode.zoom_in.value:
                 clip = video_effects.zoomin_transition(clip, 1)
             elif transition_value == VideoTransitionMode.zoom_out.value:
@@ -1075,6 +1089,10 @@ def combine_videos(
                     lambda c: video_effects.fadeout_transition(c, 1),
                     lambda c: video_effects.slidein_transition(c, 1, shuffle_side),
                     lambda c: video_effects.slideout_transition(c, 1, shuffle_side),
+                    lambda c: video_effects.slidein_transition(c, 1, "left"),
+                    lambda c: video_effects.slidein_transition(c, 1, "right"),
+                    lambda c: video_effects.pan_left_transition(c, 1),
+                    lambda c: video_effects.pan_right_transition(c, 1),
                     lambda c: video_effects.zoomin_transition(c, 1),
                     lambda c: video_effects.zoomout_transition(c, 1),
                 ]
@@ -1123,8 +1141,8 @@ def combine_videos(
             if clip_file:
                 delete_files(clip_file)
 
-    # 片段始终在线程池里处理。逐片段日志是这一阶段唯一的进度信息，绑定到
-    # 发起合成的线程后，WebUI 的任务日志才能收集到它们。
+    # Fragments are always processed in the thread pool. The fragment-by-fragment log is the only progress information at this stage and is bound to
+    # WebUI's task log can only collect synthetic threads after they are launched.
     process_clip_in_task_scope = logging_utils.bind_log_scope(process_one_clip)
     clip_processing_workers = 1
     if len(subclipped_items) >= 2:
@@ -1159,8 +1177,8 @@ def combine_videos(
                     continue
                 processed_clips.append(processed_clip)
                 video_duration += processed_clip.duration
-                # 每段 4K 素材要处理十几秒，逐段报告覆盖时长，日志和进度条
-                # 才能反映这一阶段仍在推进。
+                # Each piece of 4K material takes more than ten seconds to process, and segment-by-segment reporting covers the duration, logs and progress bar.
+                # It can be seen that this stage is still advancing.
                 logger.info(
                     f"processed clip {len(processed_clips)}: "
                     f"{video_duration:.1f} of {required_video_duration:.1f}s covered"
@@ -1224,9 +1242,9 @@ def combine_videos(
 
 
 def wrap_text(text, max_width, font="Arial", fontsize=60):
-    # 字幕换行必须在真正创建 TextClip 前完成，否则 MoviePy 只会按原始文本
-    # 计算渲染区域。这里用 PIL 按当前字体和字号测量宽度，确保每一行都尽量
-    # 控制在视频可用宽度内，避免大字号或中文长句直接溢出画面。
+    # Subtitle wrapping must be completed before actually creating the TextClip, otherwise MoviePy will only press the original text
+    # Calculate rendering area. Here, PIL is used to measure the width according to the current font and font size, ensuring that each line is as wide as possible
+    # Control it within the available width of the video to avoid large font sizes or long Chinese sentences from directly overflowing the screen.
     if "\n" in text:
         # Hard breaks in SRT text are separate layout lines. Measuring a token
         # across a newline makes Pillow count both lines as one wide string,
@@ -1242,15 +1260,15 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
     font = ImageFont.truetype(font, fontsize)
     max_width = int(max_width)
 
-    # getbbox() 返回的是“当前字形的可见墨迹高度”，并不是字体行高。例如只含
-    # A、m、n 等无下伸部字符的英文会缺少 descent，多行时这个误差会逐行累积，
-    # 最终让 TextClip 的最后一行被画布裁掉。ascent + descent 来自字体自身，
-    # 不受具体语种和字符组合影响，也与 MoviePy 的 baseline 绘制模型一致。
+    # What getbbox() returns is the "visible ink height of the current glyph", not the font line height. For example, only
+    # English characters without descendants such as A, m, n, etc. will lack descent. When there are multiple lines, this error will accumulate line by line.
+    # Finally, the last line of TextClip is cut off by the canvas. ascent + descent comes from the font itself,
+    # It is not affected by specific language and character combinations, and is consistent with MoviePy's baseline drawing model.
     ascent, descent = font.getmetrics()
     line_height = int(ascent + descent)
     if line_height <= 0:
-        # 正常 TrueType/OpenType 字体不会进入这里；保留可诊断日志和字号兜底，
-        # 避免损坏或非常规字体返回异常 metrics 后生成零高度字幕。
+        # Normal TrueType/OpenType fonts will not enter here; keep diagnostic logs and font size details,
+        # Avoid generating zero-height subtitles after corrupted or unconventional fonts return abnormal metrics.
         logger.warning(
             "invalid subtitle font metrics, fallback to font size: "
             f"ascent={ascent}, descent={descent}, fontsize={fontsize}"
@@ -1262,19 +1280,19 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
         if not inner_text:
             return 0, line_height
         left, top, right, bottom = font.getbbox(inner_text)
-        # bbox 仍适合测量换行所需的实际宽度；高度必须始终使用稳定字体行高。
+        # The bbox is still suitable for measuring the actual width required for line wrapping; the height must always use the stable font line height.
         return right - left, line_height
 
     width, height = get_text_size(text)
     if width <= max_width:
-        # SRT 条目允许作者手工换行。即使整段文本在宽度上不需要再次折行，
-        # 画布高度仍必须按现有行数计算，否则第二行及后续行会被裁掉。
+        # SRT entries allow the author to manually wrap lines. Even if the entire text does not need to be wrapped again in width,
+        # The canvas height must still be calculated based on the existing number of rows, otherwise the second and subsequent rows will be cropped.
         return text, (text.count("\n") + 1) * line_height
 
     def split_long_token(token):
-        # 当一个 token 本身就超宽时（常见于中文无空格长句，或英文超长单词），
-        # 退化为字符级拆分。关键点是：检测到 candidate 超宽时，先提交上一个
-        # 仍然合法的 current，再把当前字符放入下一行，不能把超宽字符塞回上一行。
+        # When a token itself is too wide (common in long sentences without spaces in Chinese, or long words in English),
+        # Degenerates into character-level splitting. The key point is: when a candidate is detected to be too wide, submit the previous one first
+        # Current is still legal, and then the current character is put into the next line. Extra-wide characters cannot be stuffed back into the previous line.
         lines = []
         current = ""
         for char in token:
@@ -1314,10 +1332,10 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
 
     line_start_punctuation = "，。！？；：、,.!?;:)]}）】》」』”’"
     for index in range(1, len(lines)):
-        # 中文长句按字符拆分时，最后一个句号、逗号等闭合标点可能被单独
-        # 放到下一行，导致字幕背景被异常撑高，视觉上像一个小点掉在正文
-        # 下方。这里在不重新设计换行算法的前提下，把上一行最后一个字
-        # 移到标点行前面，让标点跟随文字显示，兼容中英文常见闭合标点。
+        # When a long Chinese sentence is split by characters, the last period, comma and other closing punctuation may be separated
+        # Putting it on the next line causes the subtitle background to be abnormally raised, visually like a small dot falling on the main text.
+        # below. Here, without redesigning the newline algorithm, the last word of the previous line is
+        # Move it to the front of the punctuation line and let the punctuation follow the text display. It is compatible with common closed punctuation in Chinese and English.
         if not lines[index] or lines[index][0] not in line_start_punctuation:
             continue
         if len(lines[index - 1]) <= 1:
@@ -1330,15 +1348,15 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
             lines[index - 1] = lines[index - 1][:-1]
 
     result = "\n".join(line.strip() for line in lines if line.strip()).strip()
-    # 高度以最终结果为准。原文本中的显式换行可能保留在某个 token 内，
-    # 此时临时 lines 列表的长度不等于 MoviePy 实际渲染的行数。
+    # The height is subject to the final result. Explicit line breaks in the original text may be retained within a token,
+    # At this time, the length of the temporary lines list is not equal to the number of lines actually rendered by MoviePy.
     height = (result.count("\n") + 1) * line_height
     return result, height
 
 
 def _hex_to_rgb(color: str) -> tuple[int, int, int]:
-    # 字幕背景色来自 API/WebUI 参数，可能为空或格式不规范。这里统一只接受
-    # #RRGGBB 形式，非法值回退为黑色，避免 PIL 渲染阶段抛出异常中断任务。
+    # The subtitle background color comes from API/WebUI parameters and may be empty or in irregular format. Here we only accept
+    # #RRGGBB format, illegal values fall back to black to avoid exceptions thrown during the PIL rendering phase and interrupt the task.
     if isinstance(color, str) and color.startswith("#") and len(color) == 7:
         try:
             return (int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16))
@@ -1354,9 +1372,9 @@ def _rounded_subtitle_background_clip(
     alpha: int = 140,
     radius: int = 16,
 ) -> ImageClip:
-    # 新字幕背景仅在用户显式开启时使用：通过 RGBA 图片绘制圆角半透明底板，
-    # 再交给 MoviePy 作为透明 ImageClip 参与合成。这样默认路径完全不变，
-    # 同时可以低成本试验更柔和的字幕视觉效果。
+    # The new subtitle background is only used when the user explicitly turns it on: draw a rounded semi-transparent base plate from an RGBA image,
+    # Then hand it over to MoviePy as a transparent ImageClip to participate in the synthesis. In this way, the default path remains completely unchanged.
+    # At the same time, you can experiment with softer subtitle visuals at a low cost.
     rgb = _hex_to_rgb(color)
     safe_alpha = max(0, min(255, int(alpha)))
     img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
@@ -1375,13 +1393,13 @@ def _get_visible_center_position(
     container_height: int,
 ) -> tuple[int, int]:
     """
-    按文字真实可见像素把 TextClip 放到背景容器中心。
+    Place the TextClip in the center of the background container according to the actual visible pixels of the text.
 
-    MoviePy 的 TextClip 会按字体行高和 baseline 创建透明画布。很多字体的
-    可见字形并不在这个画布的几何中心，直接 `with_position("center")`
-    会把整块透明画布居中，导致字幕看起来偏上或偏下。这里读取 TextClip
-    的透明 mask，只根据实际有像素的 bbox 计算偏移，让用户看到的文字
-    在字幕背景里视觉居中。
+    MoviePy's TextClip creates a transparent canvas based on font line height and baseline. many fonts
+    It can be seen that the glyph is not in the geometric center of this canvas, directly `with_position("center")`
+    The entire transparent canvas will be centered, causing the subtitles to look higher or lower. Read here TextClip
+    The transparent mask only calculates the offset based on the bbox that actually has pixels, so that the user can see the text
+    Visually centered within subtitle background.
     """
     x = int(round((container_width - text_clip.w) / 2))
     y = int(round((container_height - text_clip.h) / 2))
@@ -1406,7 +1424,7 @@ def _get_visible_center_position(
 
 
 def subtitle_colors_are_indistinguishable(params: VideoParams) -> bool:
-    """判断字幕文字和背景是否同色，提醒用户可能无法看清字幕。"""
+    """Determine whether the subtitle text and background are the same color, and remind users that they may not be able to see the subtitles clearly."""
     if not params.subtitle_enabled or not params.text_background_color:
         return False
 
@@ -1422,7 +1440,7 @@ def subtitle_colors_are_indistinguishable(params: VideoParams) -> bool:
 
 @lru_cache(maxsize=64)
 def _subtitle_font_supports_sample(font_path: str, sample: str) -> bool:
-    """检查字体是否包含样本文字需要的字形，并缓存重复检查结果。"""
+    """Checks whether the font contains the required glyphs for the sample text and caches the duplicate check results."""
     try:
         font = ImageFont.truetype(font_path, 30)
         missing_mask = font.getmask("\U0010ffff")
@@ -1442,13 +1460,13 @@ def _subtitle_font_supports_sample(font_path: str, sample: str) -> bool:
                 return False
         return True
     except Exception as e:
-        # 字体探测失败不应阻止用户生成；保留日志供环境兼容问题排查。
+        # Failure in font detection should not prevent users from building; keep logs for troubleshooting environment compatibility issues.
         logger.warning(f"failed to inspect subtitle font glyphs: {font_path}, {e}")
         return True
 
 
 def subtitle_font_supports_text(font_path: str, text: str) -> bool:
-    """检查字体能否绘制文本中的字母和数字，忽略空白及标点符号。"""
+    """Checks whether the font can draw the letters and numbers in the text, ignoring whitespace and punctuation."""
     sample = "".join(
         dict.fromkeys(
             char
@@ -1470,11 +1488,11 @@ def generate_video(
     bgm_file_override: str | None = None,
 ) -> bool:
     """
-    合成最终视频，并返回本次背景音乐处理是否成功。
+    Synthesize the final video and return whether the background music processing is successful.
 
-    返回值只描述 BGM 处理状态：没有请求 BGM 或成功混合时返回 True；请求了
-    BGM 但加载、特效或混合失败时返回 False。即使 BGM 失败仍会继续输出只有
-    旁白的视频，让任务编排层决定是否向用户展示降级警告。
+    The return value only describes the BGM processing status: True is returned when BGM is not requested or mixed successfully; requested
+    BGM but returns False if loading, effects or mixing fails. Even if BGM fails, it will continue to output only
+    The narrated video lets the task orchestration layer decide whether to show the user a degradation warning.
     """
     aspect = VideoAspect(params.video_aspect)
     video_width, video_height = aspect.to_resolution()
@@ -1485,7 +1503,7 @@ def generate_video(
     logger.info(f"  ③ subtitle: {subtitle_path}")
     logger.info(f"  ④ output: {output_file}")
 
-    # https://github.com/harry0703/MoneyPrinterTurbo/issues/217
+    # https://github.com/harry0703/VietNamNewsVideo/issues/217
     # PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'final-1.mp4.tempTEMP_MPY_wvf_snd.mp3'
     # write into the same directory as the output file
     output_dir = os.path.dirname(output_file)
@@ -1494,9 +1512,9 @@ def generate_video(
     if params.subtitle_enabled:
         if not params.font_name:
             params.font_name = "STHeitiMedium.ttc"
-        # API 入口虽已预检，WebUI、CLI 和内部调用仍可直接进入渲染层；
-        # 始终以真实路径校验字体必须留在 resource/fonts，阻断绝对路径、
-        # ../ 穿越及指向目录外的符号链接，再交给 PIL/MoviePy 打开。
+        # Although the API entrance is pre-checked, WebUI, CLI and internal calls can still directly enter the rendering layer;
+        # Always verify fonts with real paths and must stay in resource/fonts, blocking absolute paths,
+        # ../ traverses and points to symbolic links outside the directory, and then is opened by PIL/MoviePy.
         font_path = file_security.resolve_path_within_directory(
             utils.font_dir(), params.font_name
         )
@@ -1506,9 +1524,9 @@ def generate_video(
         logger.info(f"  ⑤ font: {font_path}")
 
     def resolve_subtitle_background_color():
-        # 兼容历史参数：API 里 `text_background_color` 既可能是布尔值，
-        # 也可能是实际颜色字符串。统一在这里归一化，避免把 True/False
-        # 直接传给 TextClip 后出现不可预期的渲染结果。
+        # Compatible with historical parameters: `text_background_color` in the API may be a Boolean value,
+        # Might also be an actual color string. Uniformly normalize here to avoid converting True/False
+        # Unexpected rendering results occur after passing it directly to TextClip.
         if isinstance(params.text_background_color, bool):
             return "#000000" if params.text_background_color else None
         return params.text_background_color
@@ -1523,14 +1541,14 @@ def generate_video(
             getattr(params, "rounded_subtitle_background", False) and bg_color
         )
         has_subtitle_background = bool(bg_color)
-        # 圆角背景按文字真实宽度生成，左右留白应更克制；旧矩形背景仍保留
-        # 较大的安全边距，避免历史配置中的长字幕贴边或被裁切。
+        # The rounded background is generated according to the actual width of the text, and the left and right spaces should be more restrained; the old rectangular background is still retained
+        # Larger safety margins to prevent long subtitles from being edged or cropped in historical configurations.
         padding_ratio = 0.4 if rounded_bg_enabled else 0.6
         pad_x = int(params.font_size * padding_ratio) if has_subtitle_background else 0
-        # 字幕背景需要给文字左右留出明确内边距。先从可用宽度中扣除
-        # padding 再换行，避免长英文或大字号刚好撑满 90% 视频宽度后，
-        # 文字贴到背景框边缘，看起来像被裁切。普通矩形背景和圆角背景
-        # 都走这条逻辑；无背景字幕则保持原有最大宽度。
+        # Subtitle backgrounds need to leave clear padding on the left and right sides of the text. First subtract from the available width
+        # padding and then wrap the line to avoid long English or large font size that just fills 90% of the video width.
+        # The text is pasted to the edge of the background box and looks cropped. Ordinary rectangular background and rounded corner background
+        # This logic is followed; subtitles without background maintain the original maximum width.
         text_max_width = max(1, int(max_width) - 2 * pad_x)
         wrapped_txt, txt_height = wrap_text(
             phrase,
@@ -1541,18 +1559,18 @@ def generate_video(
         interline = int(params.font_size * 0.25)
         line_count = wrapped_txt.count("\n") + 1
         vertical_padding = int(params.font_size * 0.35)
-        # Pillow/MoviePy 会把描边向字形上下两侧扩张，并把这部分计入每一行
-        # 的行进高度。若只在整个字幕块外增加一次描边留白，粗描边多行文本
-        # 仍会逐行累积误差。这里按实际行数计入双侧描边空间，默认细描边只
-        # 增加少量高度，而“小字号 + 粗描边 + 多行”也能完整显示。
+        # Pillow/MoviePy will expand the stroke to the upper and lower sides of the glyph and include this part in each line
+        # travel height. If you only add a stroke of white space outside the entire subtitle block, a thick stroke of multiple lines of text
+        # Errors will still accumulate row by row. Here, the actual number of lines is included in the double-sided stroke space. By default, thin strokes only
+        # Add a small amount of height, and "small font size + thick stroke + multiple lines" can be fully displayed.
         stroke_padding = int(params.stroke_width * 2 * line_count)
         text_clip_margin_y = max(
             int(params.font_size * 0.3), int(params.stroke_width * 2)
         )
-        # MoviePy 在 `method=label` 下会自动收缩文本框高度，遇到多行字幕、
-        # 描边或背景色时，容易把最后一行的下半部分裁掉。这里显式传入
-        # 一个更保守的高度，把行间距和额外上下留白一并算进去，保证字幕
-        # 背景框与文字本身都能完整渲染出来。
+        # MoviePy will automatically shrink the height of the text box under `method=label`. When encountering multi-line subtitles,
+        # When using strokes or background colors, it is easy to cut off the lower half of the last line. Explicitly passed in here
+        # A more conservative height, taking into account line spacing and extra top and bottom white space, to ensure subtitles
+        # Both the background frame and the text itself can be fully rendered.
         clip_h = int(
             txt_height
             + vertical_padding
@@ -1561,8 +1579,8 @@ def generate_video(
         )
 
         if rounded_bg_enabled:
-            # 圆角背景需要贴合文字宽度，而不是沿用 90% 视频宽度。这里先用
-            # PIL 测量最长一行文字，再加水平内边距，避免短字幕出现过宽底板。
+            # The rounded background needs to fit the width of the text, rather than taking 90% of the width of the video. Use it here first
+            # PIL measures the longest line of text and adds horizontal padding to avoid excessively wide padding for short subtitles.
             try:
                 font = ImageFont.truetype(font_path, params.font_size)
                 text_w = max(
@@ -1656,7 +1674,7 @@ def generate_video(
         _clip = _clip.with_end(subtitle_item[0][1])
         _clip = _clip.with_duration(duration)
 
-        # 弹跳动画只在用户显式选择时启用；默认 none 完全沿用原字幕渲染路径。
+        # The bounce animation is only enabled when the user explicitly selects it; the default is none and the original subtitle rendering path is completely used.
         anim_type = getattr(params, "subtitle_animation", "none")
         if anim_type in ("pop_spring", "spring", "pop"):
             _clip = _apply_subtitle_spring_animation(_clip, duration)
@@ -1683,9 +1701,9 @@ def generate_video(
             _clip = _clip.with_position(("center", "center"))
         return _clip
 
-    # MoviePy 的 CompositeAudioClip.close() 不会关闭子 AudioFileClip。这里用
-    # ExitStack 显式持有所有原始文件 reader，确保成功、字幕异常、混音失败和
-    # 视频写入失败等路径都能释放 FFmpeg 子进程，尤其避免 Windows 文件被占用。
+    # MoviePy's CompositeAudioClip.close() does not close the child AudioFileClip. Used here
+    # ExitStack explicitly holds all raw file readers, ensuring success, subtitle exceptions, remix failures, and
+    # Paths such as video writing failure can release the FFmpeg sub-process, especially to prevent Windows files from being occupied.
     with ExitStack() as clip_stack:
         source_video_clip = clip_stack.enter_context(
             _open_video_clip_quietly(video_path)
@@ -1703,6 +1721,7 @@ def generate_video(
                 font_size=params.font_size,
             )
 
+        text_clips = []
         if params.subtitle_enabled and subtitle_path and os.path.exists(subtitle_path):
             sub = clip_stack.enter_context(
                 SubtitlesClip(
@@ -1711,26 +1730,131 @@ def generate_video(
                     make_textclip=make_textclip,
                 )
             )
-            text_clips = []
             for item in sub.subtitles:
                 clip = create_text_clip(subtitle_item=item)
                 text_clips.append(clip)
-            video_clip = CompositeVideoClip([video_clip, *text_clips])
+
+        # Overlay clips (Frame template, Brand Logo, Headline banner, and Source badge)
+        overlay_clips = []
+        if (
+            getattr(params, "frame_enabled", True)
+            and getattr(params, "frame_template", None)
+            and os.path.exists(params.frame_template)
+        ):
+            try:
+                frame_dur = getattr(params, "frame_duration", 0)
+                actual_frame_dur = min(frame_dur, video_clip.duration) if frame_dur > 0 else video_clip.duration
+                frame_img = video_template.create_frame_overlay_image(
+                    frame_path=params.frame_template,
+                    width=video_width,
+                    height=video_height,
+                    pos_x=getattr(params, "frame_x", 0.0),
+                    pos_y=getattr(params, "frame_y", 0.0),
+                )
+                frame_temp_file = os.path.join(output_dir, f"frame_{uuid4().hex[:8]}.png")
+                frame_img.save(frame_temp_file, "PNG")
+                tmpl_clip = clip_stack.enter_context(
+                    ImageClip(frame_temp_file).with_duration(actual_frame_dur)
+                )
+                overlay_clips.append(tmpl_clip)
+            except Exception as exc:
+                logger.warning(f"failed to overlay frame template: {exc}")
+
+        # 1. Brand Logo / Custom Image overlay
+        if (
+            getattr(params, "logo_enabled", False)
+            and getattr(params, "logo_file", None)
+            and os.path.exists(params.logo_file)
+        ):
+            try:
+                logo_dur = getattr(params, "logo_duration", 0)
+                actual_logo_dur = min(logo_dur, video_clip.duration) if logo_dur > 0 else video_clip.duration
+                logo_img = video_template.create_logo_overlay_image(
+                    logo_path=params.logo_file,
+                    width=video_width,
+                    height=video_height,
+                    position=getattr(params, "logo_position", "top_left"),
+                    logo_width=getattr(params, "logo_size", 140),
+                    pos_x=getattr(params, "logo_x", None),
+                    pos_y=getattr(params, "logo_y", None),
+                )
+                logo_temp_file = os.path.join(output_dir, f"logo_{uuid4().hex[:8]}.png")
+                logo_img.save(logo_temp_file, "PNG")
+                logo_clip = clip_stack.enter_context(
+                    ImageClip(logo_temp_file).with_duration(actual_logo_dur)
+                )
+                overlay_clips.append(logo_clip)
+            except Exception as exc:
+                logger.warning(f"failed to overlay brand logo: {exc}")
+
+        # 2. Headline banner overlay
+        if getattr(params, "headline_enabled", True):
+            hl_title = (getattr(params, "headline_text", "") or params.video_subject or "").strip()
+            if hl_title:
+                try:
+                    hl_dur = getattr(params, "headline_duration", 0)
+                    actual_hl_dur = min(hl_dur, video_clip.duration) if hl_dur > 0 else video_clip.duration
+                    hl_img = video_template.create_headline_banner_image(
+                        headline_badge="",
+                        headline_title=hl_title,
+                        width=video_width,
+                        height=video_height,
+                        position=getattr(params, "headline_position", "top"),
+                        pos_x=getattr(params, "headline_x", None),
+                        pos_y=getattr(params, "headline_y", None),
+                    )
+                    hl_temp_file = os.path.join(output_dir, f"headline_{uuid4().hex[:8]}.png")
+                    hl_img.save(hl_temp_file, "PNG")
+                    hl_clip = clip_stack.enter_context(
+                        ImageClip(hl_temp_file).with_duration(actual_hl_dur)
+                    )
+                    overlay_clips.append(hl_clip)
+                except Exception as exc:
+                    logger.warning(f"failed to overlay headline banner: {exc}")
+
+        # 3. Source badge overlay
+        if (
+            getattr(params, "source_badge_enabled", False)
+            and getattr(params, "source_badge_text", "")
+        ):
+            try:
+                sb_dur = getattr(params, "source_badge_duration", 0)
+                actual_sb_dur = min(sb_dur, video_clip.duration) if sb_dur > 0 else video_clip.duration
+                badge_img = video_template.create_source_badge_image(
+                    text=params.source_badge_text,
+                    width=video_width,
+                    height=video_height,
+                    position=getattr(params, "source_badge_position", "top_right"),
+                    pos_x=getattr(params, "source_badge_x", None),
+                    pos_y=getattr(params, "source_badge_y", None),
+                )
+                badge_temp_file = os.path.join(output_dir, f"badge_{uuid4().hex[:8]}.png")
+                badge_img.save(badge_temp_file, "PNG")
+                badge_clip = clip_stack.enter_context(
+                    ImageClip(badge_temp_file).with_duration(actual_sb_dur)
+                )
+                overlay_clips.append(badge_clip)
+            except Exception as exc:
+                logger.warning(f"failed to overlay source badge: {exc}")
+
+        if overlay_clips or text_clips:
+            video_clip = CompositeVideoClip([video_clip, *overlay_clips, *text_clips])
             clip_stack.callback(video_clip.close)
+
 
         bgm_enabled = bgm_service.should_use_bgm(
             params.bgm_type, params.bgm_volume
         )
         if not bgm_enabled and params.bgm_type:
-            # 所有 BGM 来源共用这一条短路规则。音量不大于 0 时不能解析随机或
-            # 自定义文件，也不能加载提供商返回的文件，避免无意义的 IO 和混音。
+            # All BGM sources share this short-circuit rule. Cannot parse random or when the volume is not greater than 0
+            # Custom files also cannot load files returned by providers to avoid meaningless IO and remixing.
             logger.info(
                 f"skipping background music because volume is not positive: "
                 f"type={params.bgm_type}, volume={params.bgm_volume}"
             )
 
-        # 提供商配乐可由任务编排层直接传入对应文件。None 表示沿用随机/自定义
-        # BGM 解析，空字符串明确禁用本条 BGM；但任何来源都必须先通过通用音量规则。
+        # The provider soundtrack can be directly transferred into the corresponding file from the task orchestration layer. None means to use random/custom
+        # BGM parsing, an empty string explicitly disables this BGM; but any source must pass the general volume rules first.
         bgm_file = ""
         if bgm_enabled:
             bgm_file = (
@@ -1748,9 +1872,9 @@ def generate_video(
                     afx.MultiplyVolume(params.bgm_volume),
                     afx.AudioFadeOut(3),
                 ]
-                # 服务内解析的随机/自定义音乐可能比成片短，需要循环铺满；任务层
-                # 通过 override 传入的文件表示提供商已经完成时长适配。这里依据
-                # 文件来源决定是否循环，避免今后每增加一个提供商都修改名称白名单。
+                # The random/customized music parsed in the service may be shorter than the final film and needs to be looped; the task layer
+                # The file passed in via override indicates that the provider has completed duration adaptation. Here is the basis
+                # The source of the file determines whether to cycle, to avoid modifying the name whitelist every time a provider is added in the future.
                 if bgm_file_override is None:
                     bgm_effects.append(afx.AudioLoop(duration=video_clip.duration))
                 bgm_source_clip = clip_stack.enter_context(AudioFileClip(bgm_file))
@@ -1758,8 +1882,8 @@ def generate_video(
                 audio_clip = CompositeAudioClip([audio_clip, bgm_clip])
             except Exception:
                 bgm_mix_succeeded = False
-                # 记录完整堆栈和稳定上下文，便于区分文件解码、MoviePy 特效和
-                # CompositeAudioClip 失败；文件内容与 API Key 不会进入日志。
+                # Record the complete stack and stable context to easily distinguish between file decoding, MoviePy effects and
+                # CompositeAudioClip failed; file contents and API Key will not be entered into the log.
                 logger.exception(
                     f"failed to mix background music: type={params.bgm_type}, "
                     f"file={bgm_file}"
@@ -1767,8 +1891,8 @@ def generate_video(
 
         final_video_clip = video_clip.with_audio(audio_clip)
         clip_stack.callback(final_video_clip.close)
-        # 显式沿用输入音频的采样率；如果取不到，再回退 MoviePy 默认的 44100Hz。
-        # 这样可以减少不同环境，尤其 Docker 中再次重采样带来的音质波动。
+        # Explicitly use the sampling rate of the input audio; if it cannot be obtained, fall back to MoviePy's default 44100Hz.
+        # This can reduce sound quality fluctuations caused by resampling in different environments, especially Docker.
         output_audio_fps = int(getattr(audio_clip, "fps", 0) or 44100)
         with _stage_heartbeat("final video render"):
             _write_videofile_with_codec_fallback(
@@ -1787,35 +1911,79 @@ def generate_video(
         return bgm_mix_succeeded
 
 
-def render_image_zoom_video(image_path: str, clip_duration: int = 5) -> str:
+def render_image_zoom_video(
+    image_path: str,
+    clip_duration: int = 5,
+    motion_mode: str = "random",
+) -> str:
     """
-    将单张本地图片渲染为带缓慢放大效果的 mp4 片段，返回输出文件路径。
-
-    local 素材预处理和 OpenAI 兼容文生图素材共用这段"图片 → 片段"渲染
-    逻辑：ImageClip 按 clip_duration 固定时长播放，并叠加每秒约 3% 的
-    动态放大，避免静态画面在成片中显得呆板。渲染异常由调用方按各自
-    素材源的失败约定处理。
+    Renders a single local image to an mp4 clip with smooth dynamic camera motion (pan/zoom), returning the output file path.
+    Supported motion_mode:
+      - "random": dynamically alternates between pan left, pan right, zoom in, and zoom out
+      - "pan_left": smooth slow pan to the left
+      - "pan_right": smooth slow pan to the right
+      - "pan_left_zoom": slow pan to the left with subtle zoom
+      - "pan_right_zoom": slow pan to the right with subtle zoom
+      - "zoom_in": smooth slow zoom in
+      - "zoom_out": smooth slow zoom out
     """
     clip = ImageClip(image_path).with_duration(clip_duration).with_position("center")
     temp_path = ""
     try:
-        # Apply a zoom effect using the resize method.
-        # A lambda function is used to make the zoom effect dynamic over time.
-        # The zoom effect starts from the original size and gradually scales up to 120%.
-        # t represents the current time, and clip.duration is the total duration of the clip.
-        # Note: 1 represents 100% size, so 1.2 represents 120%.
-        zoom_clip = clip.resized(
-            lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration)
-        )
+        norm_mode = (motion_mode or "random").lower().strip()
+        if norm_mode == "random":
+            available_modes = [
+                "pan_left",
+                "pan_right",
+                "zoom_in",
+                "zoom_out",
+                "pan_left_zoom",
+                "pan_right_zoom",
+            ]
+            chosen_mode = available_modes[
+                hash(os.path.basename(image_path)) % len(available_modes)
+            ]
+        else:
+            chosen_mode = norm_mode
 
-        # Optionally, create a composite video clip containing the zoomed clip.
-        # This is useful if you want to add other elements to the video.
-        final_clip = CompositeVideoClip([zoom_clip])
+        zoom_rate = min(0.15, clip_duration * 0.025)
+
+        if chosen_mode == "pan_left" and hasattr(clip, "transform"):
+            final_clip = video_effects.pan_left_transition(clip)
+        elif chosen_mode == "pan_right" and hasattr(clip, "transform"):
+            final_clip = video_effects.pan_right_transition(clip)
+        elif chosen_mode == "pan_left_zoom" and hasattr(clip, "transform"):
+            final_clip = video_effects.pan_left_zoom_transition(clip)
+        elif chosen_mode == "pan_right_zoom" and hasattr(clip, "transform"):
+            final_clip = video_effects.pan_right_zoom_transition(clip)
+        elif chosen_mode == "zoom_out":
+            zoom_clip = clip.resized(
+                lambda t: (1.0 + zoom_rate) - zoom_rate * (t / clip.duration)
+            )
+            final_clip = CompositeVideoClip([zoom_clip])
+        elif chosen_mode == "zoom_in":
+            zoom_clip = clip.resized(
+                lambda t: 1.0 + zoom_rate * (t / clip.duration)
+            )
+            final_clip = CompositeVideoClip([zoom_clip])
+        else:
+            is_zoom_out = (hash(os.path.basename(image_path)) % 2 == 1)
+            if is_zoom_out:
+                zoom_clip = clip.resized(
+                    lambda t: (1.0 + zoom_rate) - zoom_rate * (t / clip.duration)
+                )
+            else:
+                zoom_clip = clip.resized(
+                    lambda t: 1.0 + zoom_rate * (t / clip.duration)
+                )
+            final_clip = CompositeVideoClip([zoom_clip])
+
         try:
-            # The duration changes the rendered content, so it must be part of
-            # the output identity. Different tasks may render the same image
-            # concurrently; only publish a complete MP4 after MoviePy closes it.
-            video_file = f"{image_path}.zoom-{clip_duration}.mp4"
+            if norm_mode in ("random", "default", "zoom"):
+                video_file = f"{image_path}.zoom-{clip_duration}.mp4"
+            else:
+                video_file = f"{image_path}.{norm_mode}-{clip_duration}.mp4"
+
             descriptor, temp_path = tempfile.mkstemp(
                 prefix=".image-zoom-",
                 suffix=".mp4",
@@ -1834,12 +2002,16 @@ def render_image_zoom_video(image_path: str, clip_duration: int = 5) -> str:
             delete_files(temp_path)
 
 
-def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
-    # WebUI 在某些二次生成场景下可能传入空素材列表，这里直接返回空结果，避免抛出 NoneType 异常。
+def preprocess_video(
+    materials: List[MaterialInfo],
+    clip_duration=4,
+    image_motion_mode="random",
+):
+    # WebUI may pass in an empty material list in some secondary generation scenarios. Here, it returns an empty result directly to avoid throwing NoneType exceptions.
     if not materials:
         return []
 
-    # 仅返回通过预处理校验的素材，避免低分辨率图片继续进入后续的视频合成流程。
+    # Only materials that pass preprocessing verification are returned to prevent low-resolution images from entering the subsequent video synthesis process.
     valid_materials = []
     local_videos_dir = utils.storage_dir("local_videos", create=True)
 
@@ -1852,9 +2024,9 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
                 local_videos_dir, material.url
             )
         except ValueError as exc:
-            # local video_source 的素材路径来自 API 参数，必须限制在专用素材目录。
-            # 允许用户传文件名，也兼容历史返回的绝对路径，但不允许逃逸到系统
-            # 其他目录，避免任意文件读取或通过 MoviePy 探测本地敏感文件。
+            # The material path of local video_source comes from API parameters and must be restricted to the dedicated material directory.
+            # Users are allowed to pass in file names and are also compatible with absolute paths returned by history, but are not allowed to escape to the system.
+            # Other directories to avoid arbitrary file reading or detection of local sensitive files via MoviePy.
             logger.warning(
                 f"skip unsafe local material: {material.url}, "
                 f"local_videos_dir: {local_videos_dir}, error: {str(exc)}"
@@ -1864,7 +2036,7 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
         ext = utils.parse_extension(material_source_path)
         is_image = ext in const.FILE_TYPE_IMAGES
         try:
-            # 图片素材直接按图片方式读取，避免先走 VideoFileClip 误判后触发不稳定的回退分支。
+            # Picture materials are read directly as pictures to avoid misjudgment of VideoFileClip and triggering unstable fallback branches.
             if is_image:
                 clip, material_source_path = _open_image_clip_with_fallback(
                     material_source_path
@@ -1872,7 +2044,7 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
             else:
                 clip = _open_video_clip_quietly(material_source_path)
         except Exception:
-            # 非标准扩展名或探测失败时再回退到图片模式，兼容历史上直接传本地图片路径的情况。
+            # It will fall back to image mode when there is a non-standard extension or the detection fails, which is compatible with the historical situation of directly uploading the local image path.
             try:
                 clip, material_source_path = _open_image_clip_with_fallback(
                     material_source_path
@@ -1894,22 +2066,24 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
                     f"{_MIN_MATERIAL_DIMENSION}x{_MIN_MATERIAL_DIMENSION} required "
                     f"(tolerance {_MIN_DIMENSION_TOLERANCE}px)"
                 )
-                # 探测到低分辨率素材后立即关闭资源，并且不要把该素材返回给后续流程。
+                # Close the resource immediately after detecting low-resolution material and do not return the material to subsequent processes.
                 close_clip(clip)
                 continue
 
             if is_image:
                 logger.info(f"processing image: {material_source_path}")
-                # 探测尺寸时已经打开过一次素材，这里先释放探测句柄，再渲染
-                # 用于导出的图片片段。
+                # The material has been opened once when detecting the size. Here, the detection handle is released first and then rendered.
+                # Image fragment for export.
                 close_clip(clip)
                 video_file = render_image_zoom_video(
-                    material_source_path, clip_duration
+                    material_source_path,
+                    clip_duration,
+                    motion_mode=image_motion_mode,
                 )
                 material.url = video_file
                 logger.success(f"image processed: {video_file}")
             else:
-                # 普通视频素材只需要读取尺寸做校验，校验完成后立即释放句柄即可。
+                # Ordinary video materials only need to read the size for verification, and release the handle immediately after the verification is completed.
                 close_clip(clip)
                 # Update url to the resolved absolute path so that downstream
                 # stages (combine_videos) can open the file without re-resolving.

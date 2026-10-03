@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cross-platform installation and video generation for the MoneyPrinterTurbo Skill."""
+"""Cross-platform installation and video generation for the VietNamNewsVideo Skill."""
 
 from __future__ import annotations
 
@@ -20,9 +20,9 @@ from pathlib import Path
 
 
 PROJECT_ARCHIVE_URL = (
-    "https://github.com/harry0703/MoneyPrinterTurbo/archive/refs/heads/main.zip"
+    "https://github.com/harry0703/VietNamNewsVideo/archive/refs/heads/main.zip"
 )
-DEFAULT_ROOT = Path.home() / "MoneyPrinterTurbo"
+DEFAULT_ROOT = Path.home() / "VietNamNewsVideo"
 DEFAULT_VOICE_NAME = "zh-CN-XiaoxiaoNeural-Female"
 NEEDS_INPUT_EXIT_CODE = 10
 SUPPORTED_SOURCES = {
@@ -56,14 +56,14 @@ PEXELS_API_KEY_HELP_URL = (
 RECOMMENDED_LLM_PROVIDERS = {
     "moonshot": (
         "Kimi / Moonshot AI",
-        "https://platform.kimi.com?track_id=track-6eec1e56a4494e52adcaebbcbbefce59&aff=moneyprinterturbo",
+        "https://platform.kimi.com?track_id=track-6eec1e56a4494e52adcaebbcbbefce59&aff=vietnamnewsvideo",
     ),
     "openai": ("OpenAI", "https://platform.openai.com/api-keys"),
     "gemini": ("Google Gemini", "https://aistudio.google.com/app/apikey"),
     "deepseek": ("DeepSeek", "https://platform.deepseek.com/api_keys"),
     "volcengine": (
         "ByteDance VolcEngine Ark / Doubao",
-        "https://www.volcengine.com/activity/ai618?utm_source=MoneyPrinterTurbo",
+        "https://www.volcengine.com/activity/ai618?utm_source=VietNamNewsVideo",
     ),
     "minimax": ("MiniMax", "https://platform.minimax.io/"),
     "mimo": (
@@ -92,24 +92,24 @@ class SkillError(RuntimeError):
 
 def log(message: str) -> None:
     """Flush concise progress so the agent knows the long-running job started."""
-    print(f"[MoneyPrinterTurbo] {message}", flush=True)
+    print(f"[VietNamNewsVideo] {message}", flush=True)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Install MoneyPrinterTurbo and generate a final video from a topic."
+        description="Install VietNamNewsVideo and generate a final video from a topic."
     )
     parser.add_argument("--subject", required=True, help="video topic")
     parser.add_argument(
         "--root",
         type=Path,
         default=DEFAULT_ROOT,
-        help=f"MoneyPrinterTurbo installation directory (default: {DEFAULT_ROOT})",
+        help=f"VietNamNewsVideo installation directory (default: {DEFAULT_ROOT})",
     )
     parser.add_argument(
         "cli_args",
         nargs=argparse.REMAINDER,
-        help="additional MoneyPrinterTurbo CLI arguments placed after --",
+        help="additional VietNamNewsVideo CLI arguments placed after --",
     )
     args = parser.parse_args(argv)
     args.subject = args.subject.strip()
@@ -143,10 +143,10 @@ def ensure_project(root: Path) -> None:
     log(f"first-time installation: downloading the official project to {root}")
     with tempfile.TemporaryDirectory(prefix="mpt-install-") as temp_dir_value:
         temp_dir = Path(temp_dir_value)
-        archive_path = temp_dir / "MoneyPrinterTurbo.zip"
+        archive_path = temp_dir / "VietNamNewsVideo.zip"
         request = urllib.request.Request(
             PROJECT_ARCHIVE_URL,
-            headers={"User-Agent": "MoneyPrinterTurbo-Agent-Skill"},
+            headers={"User-Agent": "VietNamNewsVideo-Agent-Skill"},
         )
         with urllib.request.urlopen(request, timeout=120) as response:
             # Stream the archive to avoid holding a second full copy in memory.
@@ -161,7 +161,7 @@ def ensure_project(root: Path) -> None:
             if path.is_dir() and (path / "cli.py").is_file()
         ]
         if len(candidates) != 1:
-            raise SkillError("download completed but no valid MoneyPrinterTurbo project was found")
+            raise SkillError("download completed but no valid VietNamNewsVideo project was found")
         if root.exists():
             root.rmdir()
         shutil.move(str(candidates[0]), str(root))
@@ -366,8 +366,8 @@ def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[st
     if source not in SUPPORTED_SOURCES:
         raise SkillError(f"unsupported video source: {source}")
     if source == "volcengine_seedance":
-        # 与运行时 Provider 保持完全一致的凭据优先级，避免 Skill 预检通过后
-        # 主程序却读取了另一把 Key。ARK_API_KEY 语义过于宽泛，明确不再兼容。
+        # Maintain the same credential priority as the runtime provider to avoid passing Skill preflight
+        # The main program reads another Key. The semantics of ARK_API_KEY are too broad and are clearly no longer compatible.
         value = (
             _plain_config_value(text, "volcengine_seedance_api_key")
             or os.environ.get("VOLCENGINE_ARK_API_KEY", "").strip()
@@ -378,8 +378,8 @@ def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[st
         if not has_cli_option(cli_args, "--confirm-seedance-charge"):
             missing.append("confirm_seedance_charge")
     elif source == "wavespeed":
-        # WaveSpeed 的运行时凭据只来自 wavespeed_api_keys，没有环境变量回退，
-        # 这里保持同一口径。按次计费的生成源还必须显式确认收费。
+        # WaveSpeed's runtime credentials come only from wavespeed_api_keys, there is no environment variable fallback,
+        # Keeping the same caliber here. Pay-per-view generation sources must also explicitly acknowledge charges.
         if not _has_configured_value(
             _plain_config_value(text, "wavespeed_api_keys")
         ):
@@ -387,8 +387,8 @@ def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[st
         if not has_cli_option(cli_args, "--confirm-wavespeed-charge"):
             missing.append("confirm_wavespeed_charge")
     elif source == "ofox":
-        # 与运行时 Provider 保持完全一致的凭据优先级：配置键优先，其次是
-        # 语义明确的 OFOX_API_KEY 环境变量。
+        # Maintains exactly the same credential priority as the runtime provider: configuration keys first, followed by
+        # Semantically explicit OFOX_API_KEY environment variable.
         value = (
             _plain_config_value(text, "ofox_api_key")
             or os.environ.get("OFOX_API_KEY", "").strip()
@@ -398,8 +398,8 @@ def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[st
         if not has_cli_option(cli_args, "--confirm-ofox-charge"):
             missing.append("confirm_ofox_charge")
     elif source == "metaso_minimax":
-        # 秘塔 Key 与 MiniMax 官方 LLM Key 不互通，Skill 必须沿用运行时的
-        # 独立配置优先级，不能因为已经配置 minimax_api_key 就误判为可用。
+        # The secret tower key and MiniMax official LLM key are not interoperable, and the skill must use the runtime key.
+        # Configure the priority independently, and it cannot be mistakenly judged as available just because minimax_api_key has been configured.
         value = (
             _plain_config_value(text, "metaso_minimax_api_key")
             or os.environ.get("METASO_MINIMAX_API_KEY", "").strip()
@@ -418,9 +418,9 @@ def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[st
         if not has_cli_option(cli_args, "--confirm-muapi-charge"):
             missing.append("confirm_muapi_charge")
     elif source == "openai_image":
-        # 与运行时的 is_openai_image_enabled() 保持一致：文生图素材源只要求端点
-        # 与模型名。完全本地的 ComfyUI/SD 网关允许不配置 API Key，因此这里不
-        # 能把 openai_image_api_keys 当作必填项。
+        # Consistent with runtime is_openai_image_enabled(): Vincent image source only requires endpoint
+        # with model name. The fully local ComfyUI/SD gateway allows no API Key to be configured, so there is no
+        # Can treat openai_image_api_keys as required.
         for field in ("openai_image_base_url", "openai_image_model"):
             if not _has_configured_value(_plain_config_value(text, field)):
                 missing.append(field)
@@ -521,7 +521,7 @@ def _validate_pexels_key(api_key: str) -> str:
         PEXELS_VALIDATION_URL,
         headers={
             "Authorization": api_key,
-            "User-Agent": "MoneyPrinterTurbo-Agent-Skill",
+            "User-Agent": "VietNamNewsVideo-Agent-Skill",
         },
     )
     try:
@@ -583,7 +583,7 @@ def validate_pexels_config(config_path: Path, cli_args: list[str]) -> bool:
 
 
 def result_manifest_path(root: Path) -> Path:
-    return root / ".agent-logs" / "moneyprinterturbo-video" / "latest-result.json"
+    return root / ".agent-logs" / "vietnamnewsvideo-video" / "latest-result.json"
 
 
 def write_result_manifest(root: Path, payload: dict[str, object]) -> Path:
@@ -643,7 +643,7 @@ def generate_video(
 
     task_id = str(uuid.uuid4())
     task_dir = root / "storage" / "tasks" / task_id
-    log_dir = root / ".agent-logs" / "moneyprinterturbo-video"
+    log_dir = root / ".agent-logs" / "vietnamnewsvideo-video"
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / f"run-{task_id}.log"
     write_result_manifest(

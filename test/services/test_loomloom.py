@@ -134,7 +134,7 @@ class TestLoomLoomSettings(unittest.TestCase):
         self.assertNotIn("secret-token", repr(settings))
 
     def test_rejects_non_numeric_timeout_settings(self):
-        """字符串/数组/布尔不是秒数，须报带配置名的配置错误而非裸异常。"""
+        """String/array/Boolean is not a number of seconds, and a configuration error with a configuration name must be reported instead of a naked exception."""
         for name in (
             "loomloom_request_timeout_seconds",
             "loomloom_poll_interval_seconds",
@@ -162,7 +162,7 @@ class TestLoomLoomSettings(unittest.TestCase):
             )
 
     def test_rejects_non_finite_timeout_settings(self):
-        """NaN/Inf 能通过 ``value <= 0``，却会让运行截止时间判断永远不成立。"""
+        """NaN/Inf can pass ``value <= 0``, but the running deadline judgment will never be established."""
         for value in ("nan", "inf"):
             with self.subTest(value=value):
                 with self.assertRaisesRegex(
@@ -177,7 +177,7 @@ class TestLoomLoomSettings(unittest.TestCase):
                     )
 
     def test_backend_rejects_non_finite_run_timeout(self):
-        """非有限超时不得进入轮询循环，否则 ``wait_for_run`` 永不超时。"""
+        """A non-limited timeout must not enter the polling loop, otherwise ``wait_for_run`` will never timeout."""
         settings = LoomLoomSettings(
             base_url=DEFAULT_BASE_URL,
             api_token="configured-key",
@@ -606,7 +606,7 @@ class TestLoomLoomVideoBackend(unittest.TestCase):
                     self.backend.resolve_video_capability()
 
     def test_resolver_rejects_non_string_model_fields(self):
-        """服务返回 null/数值时应在目录阶段报错，不把伪 ID 传进付费请求。"""
+        """When the service returns null/numeric value, an error should be reported in the directory stage and the pseudo ID should not be passed into the payment request."""
         for field in ("modelId", "displayName"):
             for value in (None, 123, {}, []):
                 with self.subTest(field=field, value=value):
@@ -619,7 +619,7 @@ class TestLoomLoomVideoBackend(unittest.TestCase):
                         self.backend.resolve_video_capability()
 
     def test_prepares_one_video_row_per_scene(self):
-        """默认 SkillBot 必须按场景逐行报价，并携带固定的视频安全要求。"""
+        """By default SkillBot must quote line by scene and carry fixed video security requirements."""
         batch = self.backend.prepare_video_batch(
             subject="AI 办公效率",
             scene_prompts=["office worker", "AI assistant"],
@@ -698,7 +698,7 @@ class TestLoomLoomVideoBackend(unittest.TestCase):
         )
 
     def test_downloads_video_artifact_without_forwarding_api_key(self):
-        """签名产物地址无需 Bearer Key，避免把账户凭证泄漏给对象存储。"""
+        """The signed product address does not require a Bearer Key to avoid leaking account credentials to the object storage."""
         self.session.request.return_value = _Response(
             200,
             {
@@ -732,7 +732,7 @@ class TestLoomLoomVideoBackend(unittest.TestCase):
         self.assertTrue(response.closed)
 
     def test_closes_download_response_when_artifact_is_too_large(self):
-        """大小预检拒绝下载时也必须立即释放流式 HTTP 连接。"""
+        """The streaming HTTP connection must also be released immediately when size preflight rejects a download."""
         self.session.request.return_value = _Response(
             200,
             {

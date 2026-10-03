@@ -46,7 +46,7 @@ oneapi_model_name = ""
 
 class TestMptAgentSkill(unittest.TestCase):
     def create_project(self, root: Path) -> None:
-        """创建足够完成安装和配置检查的最小项目结构。"""
+        """Create the minimal project structure sufficient to complete installation and configuration checks."""
         root.mkdir()
         (root / "cli.py").write_text("", encoding="utf-8")
         (root / "config.example.toml").write_text(
@@ -63,7 +63,7 @@ class TestMptAgentSkill(unittest.TestCase):
             return False
 
     def test_skill_runs_helper_from_its_working_directory(self):
-        """确保 Windows Agent 不会在命令中嵌入易被破坏的绝对路径。"""
+        """Ensure that the Windows Agent does not embed vulnerable absolute paths in commands."""
         text = SKILL_DOCUMENT.read_text(encoding="utf-8")
 
         self.assertIn(
@@ -75,7 +75,7 @@ class TestMptAgentSkill(unittest.TestCase):
 
     def test_first_run_only_requests_missing_api_keys(self):
         with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir) / "MoneyPrinterTurbo"
+            root = Path(temp_dir) / "VietNamNewsVideo"
             self.create_project(root)
             output = io.StringIO()
 
@@ -160,7 +160,7 @@ class TestMptAgentSkill(unittest.TestCase):
             self.assertEqual(pixabay_missing, [])
 
     def test_openai_image_source_accepts_keyless_local_gateway(self):
-        """文生图素材源只需要端点与模型名，本地网关允许不配置 API Key。"""
+        """The Vincent diagram material source only requires the endpoint and model name, and the local gateway is not allowed to configure the API Key."""
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "config.toml"
             config_path.write_text(
@@ -184,7 +184,7 @@ class TestMptAgentSkill(unittest.TestCase):
             self.assertEqual(missing, [])
 
     def test_missing_openai_image_inputs_report_endpoint_and_model(self):
-        """端点或模型名缺失时必须回报字段名，且不能把可选的 Key 当作缺失。"""
+        """Field names must be reported when the endpoint or model name is missing, and the optional Key must not be treated as missing."""
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "config.toml"
             config_path.write_text(
@@ -342,10 +342,10 @@ class TestMptAgentSkill(unittest.TestCase):
         self.assertNotIn("LLM_PROVIDER_OPTIONS_BEGIN", text)
 
     def test_supported_sources_match_the_cli_video_source_list(self):
-        """helper 的来源白名单必须与 cli.py 的 _CLI_VIDEO_SOURCES 同一集合。
+        """The helper's source whitelist must be in the same set as cli.py's _CLI_VIDEO_SOURCES.
 
-        脚本里手抄的这份清单曾经漏掉 wavespeed：CLI 接受该来源，helper 却报
-        "unsupported video source"。期望值从权威常量推导，新增来源时会先失败。
+        The handwritten list in the script once left out wavespeed: the CLI accepted the source, but the helper reported
+        "unsupported video source". The expected value is derived from authoritative constants, and will fail first when adding new sources.
         """
         tree = ast.parse(
             (SKILL_SCRIPT.parents[2] / "cli.py").read_text(encoding="utf-8")
@@ -533,7 +533,7 @@ class TestMptAgentSkill(unittest.TestCase):
             self.assertNotIn(secret, output.getvalue())
 
     def test_keyless_providers_stay_aligned_with_the_provider_registry(self):
-        """辅助脚本的无 Key 集合必须与 Provider 注册表保持一致。"""
+        """The Keyless collection of helper scripts must be consistent with the Provider registry."""
         registry_keyless = {
             provider.provider_id
             for provider in LLM_PROVIDER_REGISTRY
@@ -544,7 +544,7 @@ class TestMptAgentSkill(unittest.TestCase):
 
     def test_claude_code_subscription_provider_needs_no_api_key(self):
         """
-        Claude Code 走本机订阅，辅助脚本不能再要求一把并不存在的 API Key。
+        Claude Code adopts native subscription, and the auxiliary script can no longer ask for an API Key that does not exist.
         """
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "config.toml"
@@ -563,7 +563,7 @@ class TestMptAgentSkill(unittest.TestCase):
                 provider = mpt_agent.reuse_existing_llm_provider(config_path)
             active_provider, missing = mpt_agent.missing_config(config_path, [])
 
-            # 即使别的 Provider 已经配置了 Key，也不能悄悄把订阅用户切走。
+            # Even if another Provider has configured a Key, the subscriber cannot be removed quietly.
             self.assertEqual(provider, "claude_code")
             self.assertEqual(active_provider, "claude_code")
             self.assertEqual(missing, [])
@@ -799,7 +799,7 @@ class TestMptAgentSkill(unittest.TestCase):
             self.assertEqual(command[-2:], ["--stop-at", "video"])
 
     def test_generation_failure_prints_original_model_error(self):
-        """生成失败时保留模型原始错误，避免 Skill 层猜测供应商语义。"""
+        """Preserve model original errors when generation fails to avoid the skill layer guessing vendor semantics."""
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             task_id = "12345678-1234-1234-1234-123456789abc"
