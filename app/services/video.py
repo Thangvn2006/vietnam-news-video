@@ -1802,9 +1802,13 @@ def generate_video(
                         position=getattr(params, "headline_position", "top"),
                         pos_x=getattr(params, "headline_x", None),
                         pos_y=getattr(params, "headline_y", None),
+                        font_scale=float(getattr(params, "headline_scale", 1.0) or 1.0),
+                        text_color=str(getattr(params, "headline_color", "#FFFFFF") or "#FFFFFF"),
                     )
-                    hl_temp_file = os.path.join(output_dir, f"headline_{uuid4().hex[:8]}.png")
+                    temp_overlay_dir = output_dir if output_dir and os.path.isdir(output_dir) else tempfile.gettempdir()
+                    hl_temp_file = os.path.join(temp_overlay_dir, f"headline_{uuid4().hex[:8]}.png")
                     hl_img.save(hl_temp_file, "PNG")
+                    clip_stack.callback(lambda p=hl_temp_file: os.path.exists(p) and os.remove(p))
                     hl_clip = clip_stack.enter_context(
                         ImageClip(hl_temp_file).with_duration(actual_hl_dur)
                     )
@@ -1827,9 +1831,13 @@ def generate_video(
                     position=getattr(params, "source_badge_position", "top_right"),
                     pos_x=getattr(params, "source_badge_x", None),
                     pos_y=getattr(params, "source_badge_y", None),
+                    font_scale=float(getattr(params, "source_badge_scale", 1.0) or 1.0),
+                    text_color=str(getattr(params, "source_badge_color", "#F8FAFC") or "#F8FAFC"),
                 )
-                badge_temp_file = os.path.join(output_dir, f"badge_{uuid4().hex[:8]}.png")
+                temp_overlay_dir = output_dir if output_dir and os.path.isdir(output_dir) else tempfile.gettempdir()
+                badge_temp_file = os.path.join(temp_overlay_dir, f"badge_{uuid4().hex[:8]}.png")
                 badge_img.save(badge_temp_file, "PNG")
+                clip_stack.callback(lambda p=badge_temp_file: os.path.exists(p) and os.remove(p))
                 badge_clip = clip_stack.enter_context(
                     ImageClip(badge_temp_file).with_duration(actual_sb_dur)
                 )

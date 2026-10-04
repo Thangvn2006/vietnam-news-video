@@ -168,12 +168,14 @@ class VideoParams(BaseModel):
     custom_system_prompt: str = Field(default="", max_length=8000)
 
     # Frame overlay template and news source badge
-    source_badge_enabled: bool = True
+    source_badge_enabled: bool = False
     source_badge_text: str = ""
     source_badge_position: str = "top_right"  # fallback position label
     source_badge_duration: int = 0  # 0 = permanent (suốt video), > 0 = seconds
     source_badge_x: float = 75.0  # percentage 0..100
     source_badge_y: float = 12.0  # percentage 0..100
+    source_badge_scale: float = 1.0  # scale multiplier 0.5 to 2.0 (50% to 200%)
+    source_badge_color: str = "#F8FAFC"  # hex color of source badge text
     frame_template: Optional[str] = ""
     frame_enabled: bool = True
     frame_x: float = 0.0          # percentage 0..100
@@ -181,12 +183,14 @@ class VideoParams(BaseModel):
     frame_duration: int = 0       # 0 = permanent, > 0 = seconds
 
     # Headline banner overlay
-    headline_enabled: bool = True
+    headline_enabled: bool = False
     headline_text: str = ""
     headline_position: str = "top"  # fallback position label
     headline_duration: int = 0  # 0 = permanent (suốt video), > 0 = seconds
     headline_x: float = 50.0    # percentage 0..100 (horizontal center)
     headline_y: float = 8.0     # percentage 0..100 (from top)
+    headline_scale: float = 1.0  # scale multiplier 0.5 to 2.0 (50% to 200%)
+    headline_color: str = "#FFFFFF"  # hex color of headline text
 
     # Brand Logo / Custom Image overlay
     logo_enabled: bool = False

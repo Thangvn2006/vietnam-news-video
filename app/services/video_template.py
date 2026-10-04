@@ -173,6 +173,26 @@ def create_frame_template(
     return img
 
 
+def _hex_to_rgba(color_str: str, alpha: int = 255, default_rgba=(255, 255, 255, 255)) -> tuple[int, int, int, int]:
+    """Parse hex color string (e.g. #FFF, #FFFFFF, #RRGGBBAA) to RGBA tuple."""
+    if not color_str:
+        return default_rgba
+    c = str(color_str).strip().lstrip("#")
+    if len(c) == 3:
+        c = "".join([x * 2 for x in c])
+    if len(c) == 6:
+        try:
+            return (int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16), alpha)
+        except ValueError:
+            return default_rgba
+    elif len(c) == 8:
+        try:
+            return (int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16), int(c[6:8], 16))
+        except ValueError:
+            return default_rgba
+    return default_rgba
+
+
 def create_source_badge_image(
     text: str,
     width: int = 1080,
@@ -180,10 +200,12 @@ def create_source_badge_image(
     position: str = "top_right",
     pos_x: Optional[float] = None,
     pos_y: Optional[float] = None,
+    font_scale: float = 1.0,
+    text_color: str = "#F8FAFC",
 ) -> Image.Image:
     """
     Generate an RGBA image of the video resolution containing only the source badge
-    at coordinates (pos_x%, pos_y%) or designated corner.
+    at coordinates (pos_x%, pos_y%) or designated corner, with customizable font scale and text color.
     """
     img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     if not text:
@@ -191,20 +213,22 @@ def create_source_badge_image(
 
     draw = ImageDraw.Draw(img)
     label = text if text.startswith("📌") else f"📌 {text}"
-    font = get_default_font(size=max(18, int(height * 0.015)))
+    scale = max(0.5, min(2.5, float(font_scale or 1.0)))
+    font_size = max(13, int(height * 0.015 * scale))
+    font = get_default_font(size=font_size)
 
     bbox = font.getbbox(label)
     text_w = bbox[2] - bbox[0]
     text_h = bbox[3] - bbox[1]
 
-    pad_h = 10
-    pad_w = 18
+    pad_h = max(6, int(10 * scale))
+    pad_w = max(10, int(18 * scale))
     badge_w = text_w + pad_w * 2
     badge_h = text_h + pad_h * 2
 
-    margin_x = 36
-    margin_y = 60
-    bottom_offset = 140
+    margin_x = int(36 * scale)
+    margin_y = int(60 * scale)
+    bottom_offset = int(140 * scale)
 
     if pos_x is not None and pos_y is not None:
         px = (pos_x / 100.0) * width
@@ -225,14 +249,16 @@ def create_source_badge_image(
         x0, y0 = width - badge_w - margin_x, margin_y
 
     x1, y1 = x0 + badge_w, y0 + badge_h
+    corner_radius = max(6, int(10 * scale))
     draw.rounded_rectangle(
         [x0, y0, x1, y1],
-        radius=10,
+        radius=corner_radius,
         fill=(15, 23, 42, 235),
         outline=(255, 255, 255, 90),
         width=1,
     )
-    draw.text((x0 + pad_w, y0 + pad_h - 2), label, font=font, fill=(248, 250, 252, 255))
+    col = _hex_to_rgba(text_color, alpha=255, default_rgba=(248, 250, 252, 255))
+    draw.text((x0 + pad_w, y0 + pad_h - 2), label, font=font, fill=col)
     return img
 
 
@@ -244,10 +270,14 @@ def create_headline_banner_image(
     position: str = "top",
     pos_x: Optional[float] = None,
     pos_y: Optional[float] = None,
+    font_scale: float = 1.0,
+    text_color: str = "#FFFFFF",
 ) -> Image.Image:
     """
     Generate an RGBA image of the video resolution containing the news headline banner
     (e.g. [BẢN TIN NÓNG] + Title) positioned at coordinates (pos_x%, pos_y%) or top, center, bottom.
+    Supports font scaling, customizable text color, and smart multi-line wrapping so long
+    headlines can display completely on screen without truncation.
     """
     img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     if not headline_title:
@@ -257,35 +287,66 @@ def create_headline_banner_image(
     badge_text = (headline_badge or "").strip().upper()
     title_text = (headline_title or "").strip()
 
-    # Font sizing adapted to resolution
-    title_font = get_default_font(size=max(19, int(height * 0.018)))
+    scale = max(0.5, min(2.5, float(font_scale or 1.0)))
+    base_font_size = max(15, int(height * 0.018 * scale))
 
-    # Truncate title if overly long
-    max_title_chars = 46
-    if len(title_text) > max_title_chars:
-        title_text = title_text[:max_title_chars - 3] + "..."
-
-    title_bbox = title_font.getbbox(title_text)
-    title_w = title_bbox[2] - title_bbox[0]
-    title_h = title_bbox[3] - title_bbox[1]
-
-    gap = 14 if badge_text else 0
-    pad_x = 18
-    pad_y = 10
+    pad_x = max(12, int(18 * scale))
+    pad_y = max(8, int(10 * scale))
+    gap = int(14 * scale) if badge_text else 0
 
     if badge_text:
-        badge_font = get_default_font(size=max(16, int(height * 0.015)))
+        badge_font = get_default_font(size=max(13, int(height * 0.015 * scale)))
         badge_bbox = badge_font.getbbox(badge_text)
-        badge_w = (badge_bbox[2] - badge_bbox[0]) + 24
-        badge_h = (badge_bbox[3] - badge_bbox[1]) + 14
+        badge_w = (badge_bbox[2] - badge_bbox[0]) + int(24 * scale)
+        badge_h = (badge_bbox[3] - badge_bbox[1]) + int(14 * scale)
     else:
         badge_font = None
         badge_w = 0
         badge_h = 0
 
-    total_content_w = (badge_w + gap if badge_text else 0) + title_w
-    banner_w = min(int(width * 0.94), total_content_w + pad_x * 2)
-    banner_h = max(badge_h, title_h) + pad_y * 2
+    max_banner_w = int(width * 0.94)
+    avail_text_w = max_banner_w - (badge_w + gap if badge_text else 0) - pad_x * 2
+
+    # Smart text wrap and auto-fitting:
+    # If headline is long, wrap into multiple lines cleanly without truncating
+    title_font = get_default_font(size=base_font_size)
+
+    def wrap_text_to_lines(text: str, font, max_w: int) -> list[str]:
+        words = text.split()
+        if not words:
+            return []
+        res = []
+        cur = []
+        for w in words:
+            test = " ".join(cur + [w])
+            bbox = font.getbbox(test)
+            if (bbox[2] - bbox[0]) <= max_w or not cur:
+                cur.append(w)
+            else:
+                res.append(" ".join(cur))
+                cur = [w]
+        if cur:
+            res.append(" ".join(cur))
+        return res
+
+    lines = wrap_text_to_lines(title_text, title_font, avail_text_w)
+    cur_size = base_font_size
+    while len(lines) > 2 and cur_size > max(14, int(base_font_size * 0.7)):
+        cur_size -= 2
+        title_font = get_default_font(size=cur_size)
+        lines = wrap_text_to_lines(title_text, title_font, avail_text_w)
+
+    sample_bbox = title_font.getbbox("AgMột")
+    line_h = max(18, sample_bbox[3] - sample_bbox[1])
+    line_spacing = max(4, int(line_h * 0.22))
+    total_text_h = len(lines) * line_h + max(0, len(lines) - 1) * line_spacing
+
+    line_widths = [title_font.getbbox(line)[2] - title_font.getbbox(line)[0] for line in lines]
+    max_lw = max(line_widths) if line_widths else 0
+
+    total_content_w = (badge_w + gap if badge_text else 0) + max_lw
+    banner_w = min(max_banner_w, total_content_w + pad_x * 2)
+    banner_h = max(badge_h, total_text_h) + pad_y * 2
 
     # Calculate position
     if pos_x is not None and pos_y is not None:
@@ -307,9 +368,10 @@ def create_headline_banner_image(
     x1 = x0 + banner_w
 
     # Sleek dark frosted glass background
+    corner_radius = max(8, int(12 * scale))
     draw.rounded_rectangle(
         [x0, y0, x1, y1],
-        radius=12,
+        radius=corner_radius,
         fill=(10, 15, 29, 230),
         outline=(255, 255, 255, 55),
         width=1,
@@ -323,17 +385,20 @@ def create_headline_banner_image(
         by1 = by0 + badge_h
         draw.rounded_rectangle(
             [bx0, by0, bx1, by1],
-            radius=8,
+            radius=max(6, int(8 * scale)),
             fill=(225, 29, 72, 255),
         )
-        draw.text((bx0 + 12, by0 + 6), badge_text, font=badge_font, fill=(255, 255, 255, 255))
+        draw.text((bx0 + int(12 * scale), by0 + int(6 * scale)), badge_text, font=badge_font, fill=(255, 255, 255, 255))
         tx = bx1 + gap
     else:
         tx = x0 + pad_x
 
-    # White headline title
-    ty = y0 + (banner_h - title_h) // 2 - 2
-    draw.text((tx, ty), title_text, font=title_font, fill=(255, 255, 255, 255))
+    # Render headline title lines with custom text color
+    hl_color = _hex_to_rgba(text_color, alpha=255, default_rgba=(255, 255, 255, 255))
+    text_start_y = y0 + (banner_h - total_text_h) // 2 - 1
+    for i, line in enumerate(lines):
+        curr_y = text_start_y + i * (line_h + line_spacing)
+        draw.text((tx, curr_y), line, font=title_font, fill=hl_color)
 
     return img
 

@@ -296,9 +296,18 @@ div[class*="st-key-advanced_settings_"] div[data-testid="stExpanderDetails"] {
     ) !important;
 }
 
-/* Task management popover needs a fixed width to prevent jitter when switching
-   between empty and list states, bounded by viewport width on small screens. */
+/* Default popovers: adaptive, compact width */
 div[data-testid="stPopoverBody"] {
+    width: auto !important;
+    max-width: min(440px, calc(100vw - 32px)) !important;
+}
+
+/* Task management popover specifically needs a wide fixed width to prevent jitter when switching
+   between empty and list states, bounded by viewport width on small screens. */
+div[data-testid="stPopoverBody"]:has(div[class*="task_manager_popover_panel"]),
+div[data-testid="stPopoverBody"]:has(div[class*="st-key-task_manager_popover_panel"]),
+div[data-testid="stPopoverBody"]:has(div[class*="task_row_"]),
+div[data-testid="stPopoverBody"]:has(.st-key-task_manager_status_tabs) {
     width: min(860px, calc(100vw - 48px)) !important;
     max-width: min(860px, calc(100vw - 48px)) !important;
 }
@@ -589,5 +598,23 @@ button[kind="secondary"] {
     border: 1px solid rgba(255, 255, 255, 0.1) !important;
     transition: all 0.2s ease !important;
 }
+
+/* Video library card delete action button */
+div[class*="st-key-btn_del_req_"] button {
+    border: 1px solid rgba(239, 68, 68, 0.35) !important;
+    color: #f87171 !important;
+    background: rgba(239, 68, 68, 0.08) !important;
+    border-radius: 10px !important;
+    transition: all 0.2s ease !important;
+}
+
+div[class*="st-key-btn_del_req_"] button:hover {
+    border-color: rgba(239, 68, 68, 0.75) !important;
+    background: rgba(239, 68, 68, 0.2) !important;
+    color: #fca5a5 !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 14px rgba(239, 68, 68, 0.25) !important;
+}
+
 
 

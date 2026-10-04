@@ -1469,7 +1469,8 @@ def _render_task_manager_entry():
             f"{st.session_state.get('task_manager_popover_nonce', 0)}"
         ),
     ):
-        _render_task_manager_panel(task_summaries)
+        with st.container(key="task_manager_popover_panel"):
+            _render_task_manager_panel(task_summaries)
 
 
 def _load_task_restore_payload(task_id):
@@ -5533,15 +5534,84 @@ def _render_script_settings(panel, params):
             )
 
 
+def _sync_preview_hl_en():
+    val = bool(st.session_state.get("chk_preview_headline_en", True))
+    st.session_state["headline_enabled"] = val
+    st.session_state["settings_headline_enabled_checkbox"] = val
+
+def _sync_settings_hl_en():
+    val = bool(st.session_state.get("settings_headline_enabled_checkbox", True))
+    st.session_state["headline_enabled"] = val
+    st.session_state["chk_preview_headline_en"] = val
+
+def _sync_preview_hl_txt():
+    val = str(st.session_state.get("txt_preview_headline_val", "") or "").strip()
+    st.session_state["headline_text"] = val
+    st.session_state["settings_headline_text_input"] = val
+
+def _sync_settings_hl_txt():
+    val = str(st.session_state.get("settings_headline_text_input", "") or "").strip()
+    st.session_state["headline_text"] = val
+    st.session_state["txt_preview_headline_val"] = val
+
+def _sync_preview_hl_dur():
+    val = int(st.session_state.get("preview_headline_duration_select", 0))
+    st.session_state["headline_duration"] = val
+    st.session_state["settings_headline_duration_select"] = val
+
+def _sync_settings_hl_dur():
+    val = int(st.session_state.get("settings_headline_duration_select", 0))
+    st.session_state["headline_duration"] = val
+    st.session_state["preview_headline_duration_select"] = val
+
+def _sync_preview_src_en():
+    val = bool(st.session_state.get("chk_preview_source_en", True))
+    st.session_state["source_badge_enabled"] = val
+    st.session_state["source_badge_enabled_checkbox"] = val
+
+def _sync_settings_src_en():
+    val = bool(st.session_state.get("source_badge_enabled_checkbox", True))
+    st.session_state["source_badge_enabled"] = val
+    st.session_state["chk_preview_source_en"] = val
+
+def _sync_preview_src_txt():
+    val = str(st.session_state.get("txt_preview_source_val", "") or "").strip()
+    st.session_state["source_badge_text"] = val
+    st.session_state["source_badge_text_input"] = val
+
+def _sync_settings_src_txt():
+    val = str(st.session_state.get("source_badge_text_input", "") or "").strip()
+    st.session_state["source_badge_text"] = val
+    st.session_state["txt_preview_source_val"] = val
+
+def _sync_preview_src_dur():
+    val = int(st.session_state.get("preview_source_badge_duration_select", 0))
+    st.session_state["source_badge_duration"] = val
+    st.session_state["settings_source_badge_duration_select"] = val
+
+def _sync_settings_src_dur():
+    val = int(st.session_state.get("settings_source_badge_duration_select", 0))
+    st.session_state["source_badge_duration"] = val
+    st.session_state["preview_source_badge_duration_select"] = val
+
+
 def _sync_overlay_session_state(params):
     """Ensure all overlay states (Headline, Source badge, Logo, Frame) are initialized and synchronized."""
     # 1. Headline banner
     st.session_state.setdefault("headline_enabled", getattr(params, "headline_enabled", True))
-    if not st.session_state.get("headline_text"):
+    if "headline_text" not in st.session_state or st.session_state["headline_text"] is None:
         st.session_state["headline_text"] = getattr(params, "headline_text", "") or params.video_subject or ""
     st.session_state.setdefault("headline_x", float(getattr(params, "headline_x", 50.0)))
     st.session_state.setdefault("headline_y", float(getattr(params, "headline_y", 8.0)))
+    st.session_state.setdefault("headline_scale", float(getattr(params, "headline_scale", 1.0) or 1.0))
+    st.session_state.setdefault("headline_color", str(getattr(params, "headline_color", "#FFFFFF") or "#FFFFFF"))
     st.session_state.setdefault("headline_duration", int(getattr(params, "headline_duration", 0)))
+    st.session_state.setdefault("chk_preview_headline_en", st.session_state["headline_enabled"])
+    st.session_state.setdefault("settings_headline_enabled_checkbox", st.session_state["headline_enabled"])
+    st.session_state.setdefault("txt_preview_headline_val", st.session_state["headline_text"])
+    st.session_state.setdefault("settings_headline_text_input", st.session_state["headline_text"])
+    st.session_state.setdefault("preview_headline_duration_select", st.session_state["headline_duration"])
+    st.session_state.setdefault("settings_headline_duration_select", st.session_state["headline_duration"])
 
     # 2. Source badge
     st.session_state.setdefault("source_badge_enabled", getattr(params, "source_badge_enabled", True))
@@ -5549,7 +5619,15 @@ def _sync_overlay_session_state(params):
         st.session_state["source_badge_text"] = getattr(params, "source_badge_text", "") or "Nguồn: VnExpress"
     st.session_state.setdefault("source_badge_x", float(getattr(params, "source_badge_x", 75.0)))
     st.session_state.setdefault("source_badge_y", float(getattr(params, "source_badge_y", 12.0)))
+    st.session_state.setdefault("source_badge_scale", float(getattr(params, "source_badge_scale", 1.0) or 1.0))
+    st.session_state.setdefault("source_badge_color", str(getattr(params, "source_badge_color", "#F8FAFC") or "#F8FAFC"))
     st.session_state.setdefault("source_badge_duration", int(getattr(params, "source_badge_duration", 0)))
+    st.session_state.setdefault("chk_preview_source_en", st.session_state["source_badge_enabled"])
+    st.session_state.setdefault("source_badge_enabled_checkbox", st.session_state["source_badge_enabled"])
+    st.session_state.setdefault("txt_preview_source_val", st.session_state["source_badge_text"])
+    st.session_state.setdefault("source_badge_text_input", st.session_state["source_badge_text"])
+    st.session_state.setdefault("preview_source_badge_duration_select", st.session_state["source_badge_duration"])
+    st.session_state.setdefault("settings_source_badge_duration_select", st.session_state["source_badge_duration"])
 
     # 3. Brand Logo / Photo
     st.session_state.setdefault("logo_enabled", getattr(params, "logo_enabled", False))
@@ -5571,12 +5649,16 @@ def _sync_overlay_session_state(params):
     params.headline_text = str(st.session_state["headline_text"] or "")
     params.headline_x = float(st.session_state.get("headline_x", 50.0))
     params.headline_y = float(st.session_state.get("headline_y", 8.0))
+    params.headline_scale = float(st.session_state.get("headline_scale", 1.0))
+    params.headline_color = str(st.session_state.get("headline_color", "#FFFFFF"))
     params.headline_duration = int(st.session_state.get("headline_duration", 0))
 
     params.source_badge_enabled = bool(st.session_state["source_badge_enabled"])
     params.source_badge_text = str(st.session_state["source_badge_text"] or "")
     params.source_badge_x = float(st.session_state.get("source_badge_x", 75.0))
     params.source_badge_y = float(st.session_state.get("source_badge_y", 12.0))
+    params.source_badge_scale = float(st.session_state.get("source_badge_scale", 1.0))
+    params.source_badge_color = str(st.session_state.get("source_badge_color", "#F8FAFC"))
     params.source_badge_duration = int(st.session_state.get("source_badge_duration", 0))
 
     params.logo_enabled = bool(st.session_state["logo_enabled"])
@@ -5620,6 +5702,7 @@ def _render_frame_and_source_settings(params):
             _i18n("Hiển thị Tiêu đề video", "Show Video Headline"),
             value=st.session_state["headline_enabled"],
             key="settings_headline_enabled_checkbox",
+            on_change=_sync_settings_hl_en,
         )
         st.session_state["headline_enabled"] = hl_en
         params.headline_enabled = hl_en
@@ -5630,8 +5713,9 @@ def _render_frame_and_source_settings(params):
                 hl_val = st.text_input(
                     _i18n("Nội dung tiêu đề", "Headline Text"),
                     value=st.session_state["headline_text"],
-                    placeholder="VD: Thủ tướng yêu cầu...",
+                    placeholder=params.video_subject or "VD: Thủ tướng yêu cầu...",
                     key="settings_headline_text_input",
+                    on_change=_sync_settings_hl_txt,
                 )
                 st.session_state["headline_text"] = hl_val
                 params.headline_text = hl_val
@@ -5645,6 +5729,7 @@ def _render_frame_and_source_settings(params):
                     format_func=lambda x: dict(DURATION_CHOICE_TUPLES).get(x, f"{x}s"),
                     index=idx_hl_d,
                     key="settings_headline_duration_select",
+                    on_change=_sync_settings_hl_dur,
                 )
                 st.session_state["headline_duration"] = sel_hl_d
                 params.headline_duration = sel_hl_d
@@ -5677,9 +5762,35 @@ def _render_frame_and_source_settings(params):
                 if st.button("↺ " + _i18n("Mặc định (50%, 8%)", "Default"), key="btn_rst_hl_settings", use_container_width=True):
                     st.session_state["headline_x"] = 50.0
                     st.session_state["headline_y"] = 8.0
+                    st.session_state["headline_scale"] = 1.0
+                    st.session_state["headline_color"] = "#FFFFFF"
                     params.headline_x = 50.0
                     params.headline_y = 8.0
+                    params.headline_scale = 1.0
+                    params.headline_color = "#FFFFFF"
                     st.rerun(scope="app")
+
+            c_hl_sz, c_hl_col = st.columns([1.5, 1.5])
+            with c_hl_sz:
+                hl_scale_val = st.slider(
+                    _i18n("Kích cỡ hiển thị tiêu đề (%)", "Headline Scale (%)"),
+                    min_value=50,
+                    max_value=200,
+                    value=int(round(float(st.session_state.get("headline_scale", 1.0)) * 100)),
+                    step=5,
+                    key="settings_headline_scale_slider",
+                    help=_i18n("Thu nhỏ cỡ chữ để tiêu đề dài hiển thị trọn vẹn trên màn hình hoặc phóng to để nổi bật", "Scale down font size so long headlines fit completely on screen, or scale up to stand out"),
+                )
+                st.session_state["headline_scale"] = hl_scale_val / 100.0
+                params.headline_scale = hl_scale_val / 100.0
+            with c_hl_col:
+                hl_col_val = st.color_picker(
+                    _i18n("Màu chữ tiêu đề", "Headline Text Color"),
+                    value=str(st.session_state.get("headline_color", "#FFFFFF")),
+                    key="settings_headline_color_picker",
+                )
+                st.session_state["headline_color"] = hl_col_val
+                params.headline_color = hl_col_val
 
         st.markdown("---")
 
@@ -5689,6 +5800,7 @@ def _render_frame_and_source_settings(params):
             _t("News Source Badge"),
             value=st.session_state["source_badge_enabled"],
             key="source_badge_enabled_checkbox",
+            on_change=_sync_settings_src_en,
         )
         st.session_state["source_badge_enabled"] = src_en
         params.source_badge_enabled = src_en
@@ -5701,6 +5813,7 @@ def _render_frame_and_source_settings(params):
                     value=st.session_state["source_badge_text"],
                     placeholder="VD: Nguồn: VnExpress",
                     key="source_badge_text_input",
+                    on_change=_sync_settings_src_txt,
                 )
                 st.session_state["source_badge_text"] = (entered_src or "").strip()
                 params.source_badge_text = st.session_state["source_badge_text"]
@@ -5714,9 +5827,11 @@ def _render_frame_and_source_settings(params):
                     format_func=lambda x: dict(DURATION_CHOICE_TUPLES).get(x, f"{x}s"),
                     index=idx_sb_d,
                     key="settings_source_badge_duration_select",
+                    on_change=_sync_settings_src_dur,
                 )
                 st.session_state["source_badge_duration"] = sel_sb_d
                 params.source_badge_duration = sel_sb_d
+
 
             c_src_x, c_src_y, c_src_rst = st.columns([1.2, 1.2, 0.8])
             with c_src_x:
@@ -5746,9 +5861,35 @@ def _render_frame_and_source_settings(params):
                 if st.button("↺ " + _i18n("Mặc định (75%, 12%)", "Default"), key="btn_rst_sb_settings", use_container_width=True):
                     st.session_state["source_badge_x"] = 75.0
                     st.session_state["source_badge_y"] = 12.0
+                    st.session_state["source_badge_scale"] = 1.0
+                    st.session_state["source_badge_color"] = "#F8FAFC"
                     params.source_badge_x = 75.0
                     params.source_badge_y = 12.0
+                    params.source_badge_scale = 1.0
+                    params.source_badge_color = "#F8FAFC"
                     st.rerun(scope="app")
+
+            c_sb_sz, c_sb_col = st.columns([1.5, 1.5])
+            with c_sb_sz:
+                sb_scale_val = st.slider(
+                    _i18n("Kích cỡ hiển thị nhãn nguồn (%)", "Source Badge Scale (%)"),
+                    min_value=50,
+                    max_value=200,
+                    value=int(round(float(st.session_state.get("source_badge_scale", 1.0)) * 100)),
+                    step=5,
+                    key="settings_source_scale_slider",
+                    help=_i18n("Phóng to/thu nhỏ kích cỡ hiển thị của nhãn nguồn", "Scale source badge size on screen"),
+                )
+                st.session_state["source_badge_scale"] = sb_scale_val / 100.0
+                params.source_badge_scale = sb_scale_val / 100.0
+            with c_sb_col:
+                sb_col_val = st.color_picker(
+                    _i18n("Màu chữ nhãn nguồn", "Source Badge Text Color"),
+                    value=str(st.session_state.get("source_badge_color", "#F8FAFC")),
+                    key="settings_source_color_picker",
+                )
+                st.session_state["source_badge_color"] = sb_col_val
+                params.source_badge_color = sb_col_val
 
         st.markdown("---")
 
@@ -9375,7 +9516,8 @@ def _render_live_video_preview(params: VideoParams):
                     sub_text = _t("Subtitle Preview Sample")
 
             # Prepare overlay data for interactive draggable canvas
-            headline_title = (st.session_state.get("headline_text") or params.video_subject or "").strip()
+            raw_headline = (st.session_state.get("headline_text") or params.video_subject or "").strip()
+            headline_title = raw_headline if raw_headline else _i18n("TIÊU ĐỀ VIDEO MẪU", "SAMPLE VIDEO HEADLINE")
             headline_is_enabled = bool(st.session_state.get(
                 "headline_enabled", getattr(params, "headline_enabled", True)
             ))
@@ -9402,9 +9544,8 @@ def _render_live_video_preview(params: VideoParams):
             badge_is_enabled = bool(st.session_state.get(
                 "source_badge_enabled", getattr(params, "source_badge_enabled", True)
             ))
-            badge_text = st.session_state.get(
-                "source_badge_text", getattr(params, "source_badge_text", "")
-            )
+            raw_badge = (st.session_state.get("source_badge_text") or getattr(params, "source_badge_text", "") or "").strip()
+            badge_text = raw_badge if raw_badge else "Nguồn: VnExpress"
             badge_dur = int(st.session_state.get(
                 "source_badge_duration", getattr(params, "source_badge_duration", 0)
             ))
@@ -9425,15 +9566,19 @@ def _render_live_video_preview(params: VideoParams):
                 bg_image=img_data_uri,
                 aspect=aspect_val,
                 subtitle_text=sub_text if getattr(params, "subtitle_enabled", True) else "",
-                headline_enabled=bool(headline_is_enabled and headline_title),
+                headline_enabled=headline_is_enabled,
                 headline_text=headline_title,
                 headline_x=float(st.session_state.get("headline_x", 50.0)),
                 headline_y=float(st.session_state.get("headline_y", 8.0)),
+                headline_scale=float(st.session_state.get("headline_scale", 1.0)),
+                headline_color=str(st.session_state.get("headline_color", "#FFFFFF")),
                 headline_duration=int(headline_dur),
-                source_enabled=bool(badge_is_enabled and badge_text),
+                source_enabled=badge_is_enabled,
                 source_text=badge_text,
                 source_x=float(st.session_state.get("source_badge_x", 75.0)),
                 source_y=float(st.session_state.get("source_badge_y", 12.0)),
+                source_scale=float(st.session_state.get("source_badge_scale", 1.0)),
+                source_color=str(st.session_state.get("source_badge_color", "#F8FAFC")),
                 source_duration=int(badge_dur),
                 logo_enabled=bool(logo_is_enabled and logo_uri),
                 logo_src=logo_uri,
@@ -9450,32 +9595,71 @@ def _render_live_video_preview(params: VideoParams):
                 default=None,
             )
 
-            # Sync dragged coordinates back into Streamlit state
+            # Sync dragged coordinates and scales back into Streamlit state and widget keys
             if canvas_res and isinstance(canvas_res, dict):
                 if "headline_x" in canvas_res:
-                    st.session_state["headline_x"] = float(canvas_res["headline_x"])
-                    params.headline_x = float(canvas_res["headline_x"])
+                    hx = float(canvas_res["headline_x"])
+                    st.session_state["headline_x"] = hx
+                    st.session_state["pv_slider_hl_x"] = hx
+                    st.session_state["settings_headline_x_slider"] = hx
+                    params.headline_x = hx
                 if "headline_y" in canvas_res:
-                    st.session_state["headline_y"] = float(canvas_res["headline_y"])
-                    params.headline_y = float(canvas_res["headline_y"])
+                    hy = float(canvas_res["headline_y"])
+                    st.session_state["headline_y"] = hy
+                    st.session_state["pv_slider_hl_y"] = hy
+                    st.session_state["settings_headline_y_slider"] = hy
+                    params.headline_y = hy
+                if "headline_scale" in canvas_res:
+                    hsc = float(canvas_res["headline_scale"])
+                    st.session_state["headline_scale"] = hsc
+                    st.session_state["pv_slider_hl_scale"] = int(round(hsc * 100))
+                    st.session_state["settings_headline_scale_slider"] = int(round(hsc * 100))
+                    params.headline_scale = hsc
+                if "headline_text" in canvas_res:
+                    htxt = str(canvas_res["headline_text"]).strip()
+                    st.session_state["headline_text"] = htxt
+                    st.session_state["txt_preview_headline_val"] = htxt
+                    st.session_state["settings_headline_text_input"] = htxt
+                    params.headline_text = htxt
                 if "source_x" in canvas_res:
-                    st.session_state["source_badge_x"] = float(canvas_res["source_x"])
-                    params.source_badge_x = float(canvas_res["source_x"])
+                    sx = float(canvas_res["source_x"])
+                    st.session_state["source_badge_x"] = sx
+                    st.session_state["pv_slider_sb_x"] = sx
+                    st.session_state["settings_source_x_slider"] = sx
+                    params.source_badge_x = sx
                 if "source_y" in canvas_res:
-                    st.session_state["source_badge_y"] = float(canvas_res["source_y"])
-                    params.source_badge_y = float(canvas_res["source_y"])
+                    sy = float(canvas_res["source_y"])
+                    st.session_state["source_badge_y"] = sy
+                    st.session_state["pv_slider_sb_y"] = sy
+                    st.session_state["settings_source_y_slider"] = sy
+                    params.source_badge_y = sy
+                if "source_scale" in canvas_res:
+                    ssc = float(canvas_res["source_scale"])
+                    st.session_state["source_badge_scale"] = ssc
+                    st.session_state["pv_slider_sb_scale"] = int(round(ssc * 100))
+                    params.source_badge_scale = ssc
+                if "source_text" in canvas_res:
+                    stxt = str(canvas_res["source_text"]).strip()
+                    st.session_state["source_badge_text"] = stxt
+                    st.session_state["txt_preview_source_val"] = stxt
+                    st.session_state["source_badge_text_input"] = stxt
+                    params.source_badge_text = stxt
                 if "logo_x" in canvas_res:
-                    st.session_state["logo_x"] = float(canvas_res["logo_x"])
-                    params.logo_x = float(canvas_res["logo_x"])
+                    lx = float(canvas_res["logo_x"])
+                    st.session_state["logo_x"] = lx
+                    params.logo_x = lx
                 if "logo_y" in canvas_res:
-                    st.session_state["logo_y"] = float(canvas_res["logo_y"])
-                    params.logo_y = float(canvas_res["logo_y"])
+                    ly = float(canvas_res["logo_y"])
+                    st.session_state["logo_y"] = ly
+                    params.logo_y = ly
                 if "frame_x" in canvas_res:
-                    st.session_state["frame_x"] = float(canvas_res["frame_x"])
-                    params.frame_x = float(canvas_res["frame_x"])
+                    fx = float(canvas_res["frame_x"])
+                    st.session_state["frame_x"] = fx
+                    params.frame_x = fx
                 if "frame_y" in canvas_res:
-                    st.session_state["frame_y"] = float(canvas_res["frame_y"])
-                    params.frame_y = float(canvas_res["frame_y"])
+                    fy = float(canvas_res["frame_y"])
+                    st.session_state["frame_y"] = fy
+                    params.frame_y = fy
 
             # Interactive Multi-Tab Control for Headline, Source Badge, Logo, and Frame
             preview_tabs = st.tabs([
@@ -9493,6 +9677,7 @@ def _render_live_video_preview(params: VideoParams):
                         _i18n("Hiện tiêu đề", "Show Headline"),
                         value=st.session_state.get("headline_enabled", True),
                         key="chk_preview_headline_en",
+                        on_change=_sync_preview_hl_en,
                     )
                     st.session_state["headline_enabled"] = cur_hl_en
                     params.headline_enabled = cur_hl_en
@@ -9501,9 +9686,10 @@ def _render_live_video_preview(params: VideoParams):
                         cur_hl_txt = st.text_input(
                             _i18n("Nội dung tiêu đề", "Headline Text"),
                             value=st.session_state.get("headline_text", ""),
-                            placeholder=_i18n("Nhập tiêu đề hoặc theo chủ đề", "Enter headline or follow subject"),
+                            placeholder=params.video_subject or _i18n("Nhập tiêu đề hoặc theo chủ đề...", "Enter headline or follow subject..."),
                             key="txt_preview_headline_val",
                             label_visibility="collapsed",
+                            on_change=_sync_preview_hl_txt,
                         )
                         st.session_state["headline_text"] = (cur_hl_txt or "").strip()
                         params.headline_text = st.session_state["headline_text"]
@@ -9522,11 +9708,12 @@ def _render_live_video_preview(params: VideoParams):
                             index=idx_hl_d,
                             key="preview_headline_duration_select",
                             label_visibility="collapsed",
+                            on_change=_sync_preview_hl_dur,
                         )
                         st.session_state["headline_duration"] = sel_hl_d
                         params.headline_duration = sel_hl_d
 
-                    st.caption(f"📍 **{_i18n('Tọa độ hiện tại (kéo thả trên video hoặc tinh chỉnh):', 'Coordinates (drag on video or adjust):')}** `X: {st.session_state.get('headline_x', 50.0):.1f}%`, `Y: {st.session_state.get('headline_y', 8.0):.1f}%`")
+                    st.caption(f"📍 **{_i18n('Tọa độ & Kích cỡ (kéo thả hoặc tinh chỉnh):', 'Coordinates & Size (drag or adjust):')}** `X: {st.session_state.get('headline_x', 50.0):.1f}%`, `Y: {st.session_state.get('headline_y', 8.0):.1f}%`, `Cỡ: {int(round(float(st.session_state.get('headline_scale', 1.0)) * 100))}%`")
                     c_hx, c_hy, c_hrst = st.columns([1.2, 1.2, 0.8])
                     with c_hx:
                         pv_hl_x = st.slider("X (%)", 0.0, 100.0, float(st.session_state.get("headline_x", 50.0)), step=0.5, key="pv_slider_hl_x")
@@ -9541,9 +9728,34 @@ def _render_live_video_preview(params: VideoParams):
                         if st.button("↺ " + _i18n("Mặc định", "Reset"), key="btn_pv_rst_hl", use_container_width=True):
                             st.session_state["headline_x"] = 50.0
                             st.session_state["headline_y"] = 8.0
+                            st.session_state["headline_scale"] = 1.0
+                            st.session_state["headline_color"] = "#FFFFFF"
                             params.headline_x = 50.0
                             params.headline_y = 8.0
+                            params.headline_scale = 1.0
+                            params.headline_color = "#FFFFFF"
                             st.rerun(scope="app")
+
+                    c_hlsz, c_hlcol = st.columns([1.5, 1.5])
+                    with c_hlsz:
+                        pv_hl_scale = st.slider(
+                            _i18n("Kích cỡ hiển thị (%)", "Headline Scale (%)"),
+                            50, 200,
+                            int(round(float(st.session_state.get("headline_scale", 1.0)) * 100)),
+                            step=5,
+                            key="pv_slider_hl_scale",
+                            help=_i18n("Kéo góc ⤡ trên màn hình video hoặc chỉnh slider để phóng to/thu nhỏ tiêu đề, giúp tiêu đề dài hiển thị trọn vẹn", "Resize headline on video screen or slider so long headlines fit completely"),
+                        )
+                        st.session_state["headline_scale"] = pv_hl_scale / 100.0
+                        params.headline_scale = pv_hl_scale / 100.0
+                    with c_hlcol:
+                        pv_hl_color = st.color_picker(
+                            _i18n("Màu chữ tiêu đề", "Headline Text Color"),
+                            value=str(st.session_state.get("headline_color", "#FFFFFF")),
+                            key="pv_picker_hl_color",
+                        )
+                        st.session_state["headline_color"] = pv_hl_color
+                        params.headline_color = pv_hl_color
 
             # Tab 2: Nhãn nguồn (Source Badge)
             with preview_tabs[1]:
@@ -9553,6 +9765,7 @@ def _render_live_video_preview(params: VideoParams):
                         _i18n("Hiện nhãn nguồn", "Show Source Badge"),
                         value=st.session_state.get("source_badge_enabled", True),
                         key="chk_preview_source_en",
+                        on_change=_sync_preview_src_en,
                     )
                     st.session_state["source_badge_enabled"] = src_en
                     params.source_badge_enabled = src_en
@@ -9564,6 +9777,7 @@ def _render_live_video_preview(params: VideoParams):
                             placeholder="VD: Nguồn: VnExpress",
                             key="txt_preview_source_val",
                             label_visibility="collapsed",
+                            on_change=_sync_preview_src_txt,
                         )
                         st.session_state["source_badge_text"] = (entered_src or "").strip()
                         params.source_badge_text = st.session_state["source_badge_text"]
@@ -9582,11 +9796,12 @@ def _render_live_video_preview(params: VideoParams):
                             index=idx_sb_d,
                             key="preview_source_badge_duration_select",
                             label_visibility="collapsed",
+                            on_change=_sync_preview_src_dur,
                         )
                         st.session_state["source_badge_duration"] = sel_sb_d
                         params.source_badge_duration = sel_sb_d
 
-                    st.caption(f"📍 **{_i18n('Tọa độ hiện tại (kéo thả trên video hoặc tinh chỉnh):', 'Coordinates (drag on video or adjust):')}** `X: {st.session_state.get('source_badge_x', 75.0):.1f}%`, `Y: {st.session_state.get('source_badge_y', 12.0):.1f}%`")
+                    st.caption(f"📍 **{_i18n('Tọa độ & Kích cỡ (kéo thả hoặc tinh chỉnh):', 'Coordinates & Size (drag or adjust):')}** `X: {st.session_state.get('source_badge_x', 75.0):.1f}%`, `Y: {st.session_state.get('source_badge_y', 12.0):.1f}%`, `Cỡ: {int(round(float(st.session_state.get('source_badge_scale', 1.0)) * 100))}%`")
                     c_sx, c_sy, c_srst = st.columns([1.2, 1.2, 0.8])
                     with c_sx:
                         pv_sb_x = st.slider("X (%)", 0.0, 100.0, float(st.session_state.get("source_badge_x", 75.0)), step=0.5, key="pv_slider_sb_x")
@@ -9601,9 +9816,34 @@ def _render_live_video_preview(params: VideoParams):
                         if st.button("↺ " + _i18n("Mặc định", "Reset"), key="btn_pv_rst_sb", use_container_width=True):
                             st.session_state["source_badge_x"] = 75.0
                             st.session_state["source_badge_y"] = 12.0
+                            st.session_state["source_badge_scale"] = 1.0
+                            st.session_state["source_badge_color"] = "#F8FAFC"
                             params.source_badge_x = 75.0
                             params.source_badge_y = 12.0
+                            params.source_badge_scale = 1.0
+                            params.source_badge_color = "#F8FAFC"
                             st.rerun(scope="app")
+
+                    c_sbsz, c_sbcol = st.columns([1.5, 1.5])
+                    with c_sbsz:
+                        pv_sb_scale = st.slider(
+                            _i18n("Kích cỡ hiển thị (%)", "Source Badge Scale (%)"),
+                            50, 200,
+                            int(round(float(st.session_state.get("source_badge_scale", 1.0)) * 100)),
+                            step=5,
+                            key="pv_slider_sb_scale",
+                            help=_i18n("Kéo góc ⤡ trên màn hình video hoặc chỉnh slider để phóng to/thu nhỏ nhãn nguồn", "Resize source badge on video screen or slider"),
+                        )
+                        st.session_state["source_badge_scale"] = pv_sb_scale / 100.0
+                        params.source_badge_scale = pv_sb_scale / 100.0
+                    with c_sbcol:
+                        pv_sb_color = st.color_picker(
+                            _i18n("Màu chữ nhãn nguồn", "Source Badge Text Color"),
+                            value=str(st.session_state.get("source_badge_color", "#F8FAFC")),
+                            key="pv_picker_sb_color",
+                        )
+                        st.session_state["source_badge_color"] = pv_sb_color
+                        params.source_badge_color = pv_sb_color
 
             # Tab 3: Logo thương hiệu / Ảnh tùy chỉnh
             with preview_tabs[2]:
@@ -9798,12 +10038,16 @@ def _render_live_video_preview(params: VideoParams):
 
             if headline_is_enabled and headline_title:
                 hl_dur_str = f"{headline_dur}s" if headline_dur > 0 else _i18n("Vĩnh viễn", "Permanent")
-                st.markdown(f"- **{_i18n('Tiêu đề', 'Headline')}**: `{headline_title}` (X: {st.session_state.get('headline_x', 50.0):.1f}%, Y: {st.session_state.get('headline_y', 8.0):.1f}%, {hl_dur_str})")
+                hl_sz_str = f"{int(round(float(st.session_state.get('headline_scale', 1.0)) * 100))}%"
+                hl_col_str = str(st.session_state.get('headline_color', '#FFFFFF'))
+                st.markdown(f"- **{_i18n('Tiêu đề', 'Headline')}**: `{headline_title}` (X: {st.session_state.get('headline_x', 50.0):.1f}%, Y: {st.session_state.get('headline_y', 8.0):.1f}%, Cỡ: {hl_sz_str}, Màu: `{hl_col_str}`, {hl_dur_str})")
 
             if badge_is_enabled and badge_text:
                 sb_dur_str = f"{badge_dur}s" if badge_dur > 0 else _i18n("Vĩnh viễn", "Permanent")
+                sb_sz_str = f"{int(round(float(st.session_state.get('source_badge_scale', 1.0)) * 100))}%"
+                sb_col_str = str(st.session_state.get('source_badge_color', '#F8FAFC'))
                 st.markdown(
-                    f"- **{_t('News Source Badge')}**: `{badge_text}` (X: {st.session_state.get('source_badge_x', 75.0):.1f}%, Y: {st.session_state.get('source_badge_y', 12.0):.1f}%, {sb_dur_str})"
+                    f"- **{_t('News Source Badge')}**: `{badge_text}` (X: {st.session_state.get('source_badge_x', 75.0):.1f}%, Y: {st.session_state.get('source_badge_y', 12.0):.1f}%, Cỡ: {sb_sz_str}, Màu: `{sb_col_str}`, {sb_dur_str})"
                 )
 
             if logo_is_enabled and st.session_state.get("logo_file"):
@@ -9967,8 +10211,51 @@ def _sync_past_generated_videos():
         logger.debug(f"Failed to sync past videos: {exc}")
 
 
+def _dismiss_delete_video_dialog():
+    st.session_state["confirm_delete_video"] = None
+
+
+@st.dialog(_i18n("Xác nhận xóa video", "Confirm Delete Video"), on_dismiss=_dismiss_delete_video_dialog)
+def _render_delete_video_dialog(v_info):
+    safe_name = html.escape(str(v_info.get("name", "")))
+    size_str = str(v_info.get("size_mb", 0))
+    time_str = str(v_info.get("time_str", ""))
+    st.markdown(
+        f"""
+        <div style="margin-bottom: 12px;">
+            <div style="font-size: 1.05rem; font-weight: 600; color: #f8fafc; margin-bottom: 6px; word-break: break-all;">
+                🎞️ {safe_name}
+            </div>
+            <div style="font-size: 0.85rem; color: #94a3b8;">
+                📦 {_i18n('Dung lượng:', 'Size:')} <strong style="color: #38bdf8;">{size_str} MB</strong> | 📅 {time_str}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.warning(_i18n("⚠️ Bạn có chắc chắn muốn xóa vĩnh viễn video này? Thao tác này sẽ xóa tệp trên đĩa và không thể hoàn tác.",
+                     "⚠️ Are you sure you want to permanently delete this video? This file will be removed from disk and cannot be undone."))
+    c_cfm, c_ccl = st.columns(2, gap="medium")
+    with c_cfm:
+        if st.button("🗑️ " + _i18n("Xóa vĩnh viễn", "Delete Permanently"), type="primary", use_container_width=True, key="btn_confirm_del_modal"):
+            ok = _delete_generated_video(v_info["path"], v_info["name"])
+            st.session_state["confirm_delete_video"] = None
+            if ok:
+                st.toast(_i18n("Đã xóa video thành công!", "Video deleted successfully!"), icon="🗑️")
+            else:
+                st.warning(_i18n("Đã xóa video khỏi danh sách!", "Video removed from list!"))
+            st.rerun(scope="app")
+    with c_ccl:
+        if st.button(_i18n("Hủy bỏ", "Cancel"), use_container_width=True, key="btn_cancel_del_modal"):
+            st.session_state["confirm_delete_video"] = None
+            st.rerun(scope="app")
+
+
 def _render_generated_videos_tab():
     _sync_past_generated_videos()
+    if st.session_state.get("confirm_delete_video"):
+        _render_delete_video_dialog(st.session_state["confirm_delete_video"])
+
     out_dir = utils.output_videos_dir()
     os.makedirs(out_dir, exist_ok=True)
 
@@ -10153,7 +10440,7 @@ def _render_generated_videos_tab():
             else:
                 st.caption(f"⚠️ {_i18n('Không thể nạp tệp video', 'Cannot load video file')}")
 
-            c_dl, c_del = st.columns([1.4, 1])
+            c_dl, c_del = st.columns([1, 1], gap="small")
             with c_dl:
                 if video_bytes:
                     st.download_button(
@@ -10164,15 +10451,20 @@ def _render_generated_videos_tab():
                         key=f"dl_video_{idx}_{abs(hash(v['name']))}",
                         use_container_width=True,
                     )
-            with c_del, st.popover("🗑️ " + _i18n("Xóa", "Delete"), use_container_width=True):
-                st.markdown(f"**{_i18n('Xác nhận xóa vĩnh viễn?', 'Permanently delete?')}**")
-                st.caption(f"`{v['name']}`")
-                if st.button("⚠️ " + _i18n("Xác nhận xóa", "Confirm Delete"), key=f"btn_confirm_del_{idx}_{abs(hash(v['name']))}", type="primary", use_container_width=True):
-                    ok = _delete_generated_video(v["path"], v["name"])
-                    if ok:
-                        st.toast(_i18n("Đã xóa video thành công!", "Video deleted successfully!"), icon="🗑️")
-                    else:
-                        st.warning(_i18n("Đã xóa video khỏi danh sách!", "Video removed from list!"))
+                else:
+                    st.button(
+                        "⬇️ " + _i18n("Tải về", "Download"),
+                        disabled=True,
+                        key=f"dl_video_dis_{idx}_{abs(hash(v['name']))}",
+                        use_container_width=True,
+                    )
+            with c_del:
+                if st.button(
+                    "🗑️ " + _i18n("Xóa", "Delete"),
+                    key=f"btn_del_req_{idx}_{abs(hash(v['name']))}",
+                    use_container_width=True,
+                ):
+                    st.session_state["confirm_delete_video"] = v
                     st.rerun(scope="app")
 
 

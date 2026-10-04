@@ -45,3 +45,7 @@ htmlcov/
 
 # Claude Code subscription token (automatically read by docker compose), do not commit
 .env
+
+# Temporary overlay images
+headline_*.png
+badge_*.png

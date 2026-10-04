@@ -141,6 +141,7 @@
     gap: 8px;
     max-width: 95%;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    box-sizing: border-box;
   }
   .headline-tag {
     background: #e11d48;
@@ -153,14 +154,15 @@
     text-transform: uppercase;
     box-shadow: 0 2px 6px rgba(225, 29, 72, 0.4);
     white-space: nowrap;
+    flex-shrink: 0;
   }
   .headline-text {
     font-size: 11px;
     font-weight: 700;
     color: #ffffff;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.35;
     text-shadow: 0 1px 3px rgba(0,0,0,0.9);
   }
 
@@ -180,6 +182,79 @@
     align-items: center;
     gap: 5px;
     white-space: nowrap;
+    box-sizing: border-box;
+  }
+
+  /* Interactive Resize Handles & Toolbar */
+  .resize-handle {
+    position: absolute;
+    bottom: -6px;
+    right: -6px;
+    width: 18px;
+    height: 18px;
+    background: #38bdf8;
+    color: #0f172a;
+    font-size: 11px;
+    font-weight: 900;
+    line-height: 18px;
+    text-align: center;
+    border-radius: 50%;
+    cursor: nwse-resize;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.6);
+    opacity: 0;
+    transition: opacity 0.15s ease, transform 0.1s ease;
+    z-index: 105;
+    touch-action: none;
+    user-select: none;
+  }
+  .draggable-item:hover .resize-handle,
+  .draggable-item.resizing .resize-handle {
+    opacity: 1;
+  }
+  .resize-handle:hover {
+    transform: scale(1.22);
+    background: #7dd3fc;
+  }
+
+  .item-actions-bar {
+    position: absolute;
+    top: -24px;
+    right: 0;
+    background: rgba(15, 23, 42, 0.95);
+    border: 1px solid #38bdf8;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 1px 4px;
+    font-size: 9px;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    z-index: 104;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+    pointer-events: auto;
+  }
+  .draggable-item:hover .item-actions-bar,
+  .draggable-item.resizing .item-actions-bar {
+    opacity: 1;
+  }
+  .btn-scale {
+    cursor: pointer;
+    font-size: 10px;
+    padding: 0 2px;
+    user-select: none;
+    transition: transform 0.1s;
+  }
+  .btn-scale:hover {
+    transform: scale(1.25);
+    color: #38bdf8;
+  }
+  .scale-label {
+    color: #38bdf8;
+    font-weight: 700;
+    font-size: 9px;
+    min-width: 28px;
+    text-align: center;
   }
 
   /* Logo styling */
@@ -265,12 +340,14 @@
     margin-left: 4px;
     border: 1px solid rgba(253, 224, 71, 0.45);
     white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .drag-handle-hint {
     color: #94a3b8;
     font-size: 10px;
     margin-right: 2px;
+    flex-shrink: 0;
   }
 
   .canvas-guide {
@@ -308,20 +385,32 @@
         <img id="img-frame" src="" />
       </div>
 
-      <!-- Draggable Headline -->
+      <!-- Draggable & Resizable Headline -->
       <div id="item-headline" class="draggable-item" style="display: none;">
         <div class="coord-tooltip" id="tip-headline">50%, 8%</div>
+        <div class="item-actions-bar">
+          <span class="btn-scale" id="btn-hl-dec" title="Thu nhỏ cỡ chữ">➖</span>
+          <span class="scale-label" id="lbl-scale-headline">100%</span>
+          <span class="btn-scale" id="btn-hl-inc" title="Phóng to cỡ chữ">➕</span>
+        </div>
         <span class="drag-handle-hint">⠿</span>
         <span class="headline-text" id="headline-text-content"></span>
         <span class="duration-badge" id="dur-headline"></span>
+        <div class="resize-handle" id="resize-headline" title="Kéo để phóng to / thu nhỏ">⤡</div>
       </div>
 
-      <!-- Draggable Source Badge -->
+      <!-- Draggable & Resizable Source Badge -->
       <div id="item-source" class="draggable-item" style="display: none;">
         <div class="coord-tooltip" id="tip-source">75%, 12%</div>
+        <div class="item-actions-bar">
+          <span class="btn-scale" id="btn-src-dec" title="Thu nhỏ cỡ chữ">➖</span>
+          <span class="scale-label" id="lbl-scale-source">100%</span>
+          <span class="btn-scale" id="btn-src-inc" title="Phóng to cỡ chữ">➕</span>
+        </div>
         <span class="drag-handle-hint">⠿</span>
         <span id="source-text-content">📌 Nguồn tin</span>
         <span class="duration-badge" id="dur-source"></span>
+        <div class="resize-handle" id="resize-source" title="Kéo để phóng to / thu nhỏ">⤡</div>
       </div>
 
       <!-- Draggable Logo / Image -->
@@ -338,7 +427,7 @@
 
     <div class="canvas-guide">
       <span>🖐️</span>
-      <span><strong>Nhấn giữ & kéo thả</strong> trực tiếp Tiêu đề, Nguồn, Logo hoặc Khung để thay đổi vị trí</span>
+      <span><strong>Kéo thả</strong> để di chuyển vị trí | <strong>Kéo góc ⤡ hoặc bấm ➕➖</strong> để phóng to/thu nhỏ tiêu đề & nguồn</span>
     </div>
   </div>
 
@@ -346,8 +435,10 @@
   let state = {
     headline_x: 50.0,
     headline_y: 8.0,
+    headline_scale: 1.0,
     source_x: 75.0,
     source_y: 12.0,
+    source_scale: 1.0,
     logo_x: 8.0,
     logo_y: 6.0,
     frame_x: 0.0,
@@ -355,6 +446,10 @@
   };
 
   const stage = document.getElementById("videoStage");
+  const elHeadline = document.getElementById("item-headline");
+  const elSource = document.getElementById("item-source");
+  const elLogo = document.getElementById("item-logo");
+  const elFrame = document.getElementById("item-frame");
 
   function sendToStreamlit(value) {
     window.parent.postMessage({
@@ -380,13 +475,41 @@
     }, "*");
   }
 
+  function applyHeadlineScale(scale) {
+    scale = Math.max(0.5, Math.min(2.0, Number(scale || 1.0)));
+    const textEl = document.getElementById("headline-text-content");
+    textEl.style.fontSize = Math.round(11 * scale) + "px";
+    elHeadline.style.padding = `${Math.round(5 * scale)}px ${Math.round(10 * scale)}px`;
+    elHeadline.style.gap = `${Math.round(8 * scale)}px`;
+    const tagEl = elHeadline.querySelector(".headline-tag");
+    if (tagEl) {
+      tagEl.style.fontSize = Math.round(10 * scale) + "px";
+      tagEl.style.padding = `${Math.round(2 * scale)}px ${Math.round(8 * scale)}px`;
+    }
+    const lbl = document.getElementById("lbl-scale-headline");
+    if (lbl) lbl.innerText = Math.round(scale * 100) + "%";
+  }
+
+  function applySourceScale(scale) {
+    scale = Math.max(0.5, Math.min(2.0, Number(scale || 1.0)));
+    const textEl = document.getElementById("source-text-content");
+    textEl.style.fontSize = Math.round(11 * scale) + "px";
+    elSource.style.padding = `${Math.round(4 * scale)}px ${Math.round(10 * scale)}px`;
+    elSource.style.gap = `${Math.round(5 * scale)}px`;
+    const lbl = document.getElementById("lbl-scale-source");
+    if (lbl) lbl.innerText = Math.round(scale * 100) + "%";
+  }
+
   // Set up pointer drag for element inside canvas
-  function setupDraggable(el, keyX, keyY, tipEl, isCenteredX = false) {
+  function setupDraggable(el, keyX, keyY, scaleKey, tipEl, isCenteredX = false) {
     let startX = 0, startY = 0;
     let initialLeft = 0, initialTop = 0;
     let isDragging = false;
 
     el.addEventListener("pointerdown", function(e) {
+      if (e.target.closest('.resize-handle') || e.target.closest('.item-actions-bar')) {
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       try { el.setPointerCapture(e.pointerId); } catch(err){}
@@ -411,7 +534,6 @@
       let newLeft = initialLeft + dx;
       let newTop = initialTop + dy;
 
-      // Bound within canvas (allow frames some flexibility)
       const minLeft = keyX === "frame_x" ? -stageW * 0.4 : 0;
       const maxLeft = keyX === "frame_x" ? stageW * 0.9 : Math.max(0, stageW - elW);
       const minTop = keyY === "frame_y" ? -stageH * 0.4 : 0;
@@ -423,13 +545,13 @@
       el.style.left = newLeft + "px";
       el.style.top = newTop + "px";
 
-      // Calculate percentage
       let pctX = isCenteredX 
         ? Math.round(((newLeft + elW / 2) / stageW) * 1000) / 10 
         : Math.round((newLeft / stageW) * 1000) / 10;
       let pctY = Math.round((newTop / stageH) * 1000) / 10;
 
-      tipEl.innerText = `${pctX}%, ${pctY}%`;
+      let extraInfo = scaleKey ? ` | 📐 ${Math.round((state[scaleKey] || 1.0) * 100)}%` : "";
+      tipEl.innerText = `${pctX}%, ${pctY}%${extraInfo}`;
     });
 
     function endDrag(e) {
@@ -450,7 +572,6 @@
       state[keyX] = Math.max(0, Math.min(100, pctX));
       state[keyY] = Math.max(0, Math.min(100, pctY));
 
-      // Post back to Streamlit
       sendToStreamlit(state);
     }
 
@@ -458,15 +579,119 @@
     el.addEventListener("pointercancel", endDrag);
   }
 
-  const elHeadline = document.getElementById("item-headline");
-  const elSource = document.getElementById("item-source");
-  const elLogo = document.getElementById("item-logo");
-  const elFrame = document.getElementById("item-frame");
+  // Setup interactive resize handle
+  function setupResizable(el, handleEl, keyScale, keyX, keyY, tipEl, isCenteredX, onApply) {
+    let startX = 0, startY = 0;
+    let initialScale = 1.0;
+    let isResizing = false;
 
-  setupDraggable(elHeadline, "headline_x", "headline_y", document.getElementById("tip-headline"), true);
-  setupDraggable(elSource, "source_x", "source_y", document.getElementById("tip-source"), false);
-  setupDraggable(elLogo, "logo_x", "logo_y", document.getElementById("tip-logo"), false);
-  setupDraggable(elFrame, "frame_x", "frame_y", document.getElementById("tip-frame"), false);
+    handleEl.addEventListener("pointerdown", function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      try { handleEl.setPointerCapture(e.pointerId); } catch(err){}
+      isResizing = true;
+      el.classList.add("resizing");
+      startX = e.clientX;
+      startY = e.clientY;
+      initialScale = Number(state[keyScale] || 1.0);
+    });
+
+    handleEl.addEventListener("pointermove", function(e) {
+      if (!isResizing) return;
+      e.preventDefault();
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      let delta = (dx + dy) / 100.0;
+      let newScale = Math.round((initialScale + delta) * 20) / 20; // 5% increments
+      newScale = Math.max(0.5, Math.min(2.0, newScale));
+      state[keyScale] = newScale;
+      onApply(newScale);
+      positionElement(el, state[keyX], state[keyY], isCenteredX);
+      tipEl.innerText = `📐 Kích cỡ: ${Math.round(newScale * 100)}%`;
+    });
+
+    function endResize(e) {
+      if (!isResizing) return;
+      isResizing = false;
+      el.classList.remove("resizing");
+      try { handleEl.releasePointerCapture(e.pointerId); } catch(err){}
+      sendToStreamlit(state);
+    }
+
+    handleEl.addEventListener("pointerup", endResize);
+    handleEl.addEventListener("pointercancel", endResize);
+  }
+
+  // Setup quick zoom +/- buttons
+  function setupZoomButtons(btnDec, btnInc, keyScale, keyX, keyY, isCenteredX, onApply) {
+    btnDec.addEventListener("click", function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      let cur = Number(state[keyScale] || 1.0);
+      let newScale = Math.max(0.5, Math.round((cur - 0.1) * 10) / 10);
+      state[keyScale] = newScale;
+      onApply(newScale);
+      const targetEl = keyScale === "headline_scale" ? elHeadline : elSource;
+      positionElement(targetEl, state[keyX], state[keyY], isCenteredX);
+      sendToStreamlit(state);
+    });
+    btnInc.addEventListener("click", function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      let cur = Number(state[keyScale] || 1.0);
+      let newScale = Math.min(2.0, Math.round((cur + 0.1) * 10) / 10);
+      state[keyScale] = newScale;
+      onApply(newScale);
+      const targetEl = keyScale === "headline_scale" ? elHeadline : elSource;
+      positionElement(targetEl, state[keyX], state[keyY], isCenteredX);
+      sendToStreamlit(state);
+    });
+  }
+
+  setupDraggable(elHeadline, "headline_x", "headline_y", "headline_scale", document.getElementById("tip-headline"), true);
+  setupDraggable(elSource, "source_x", "source_y", "source_scale", document.getElementById("tip-source"), false);
+  setupDraggable(elLogo, "logo_x", "logo_y", null, document.getElementById("tip-logo"), false);
+  setupDraggable(elFrame, "frame_x", "frame_y", null, document.getElementById("tip-frame"), false);
+
+  setupResizable(elHeadline, document.getElementById("resize-headline"), "headline_scale", "headline_x", "headline_y", document.getElementById("tip-headline"), true, applyHeadlineScale);
+  setupResizable(elSource, document.getElementById("resize-source"), "source_scale", "source_x", "source_y", document.getElementById("tip-source"), false, applySourceScale);
+
+  setupZoomButtons(document.getElementById("btn-hl-dec"), document.getElementById("btn-hl-inc"), "headline_scale", "headline_x", "headline_y", true, applyHeadlineScale);
+  setupZoomButtons(document.getElementById("btn-src-dec"), document.getElementById("btn-src-inc"), "source_scale", "source_x", "source_y", false, applySourceScale);
+
+  const hlTextElInit = document.getElementById("headline-text-content");
+  if (hlTextElInit) {
+    hlTextElInit.style.cursor = "text";
+    hlTextElInit.title = "Nhấp đúp chuột để chỉnh sửa nhanh nội dung tiêu đề";
+    hlTextElInit.addEventListener("dblclick", function(e) {
+      e.stopPropagation();
+      e.preventDefault();
+      const current = hlTextElInit.innerText;
+      const edited = prompt("Nhập nội dung tiêu đề video:", current === "TIÊU ĐỀ VIDEO MẪU" ? "" : current);
+      if (edited !== null && edited.trim() !== "") {
+        hlTextElInit.innerText = edited.trim();
+        state.headline_text = edited.trim();
+        sendToStreamlit(state);
+      }
+    });
+  }
+
+  const srcTextElInit = document.getElementById("source-text-content");
+  if (srcTextElInit) {
+    srcTextElInit.style.cursor = "text";
+    srcTextElInit.title = "Nhấp đúp chuột để chỉnh sửa nhanh nhãn nguồn";
+    srcTextElInit.addEventListener("dblclick", function(e) {
+      e.stopPropagation();
+      e.preventDefault();
+      const current = srcTextElInit.innerText.replace(/^📌\s*/, "");
+      const edited = prompt("Nhập nội dung nhãn nguồn:", current === "Nguồn: VnExpress" ? "" : current);
+      if (edited !== null && edited.trim() !== "") {
+        srcTextElInit.innerText = `📌 ${edited.trim()}`;
+        state.source_text = edited.trim();
+        sendToStreamlit(state);
+      }
+    });
+  }
 
   function positionElement(el, pctX, pctY, isCenteredX = false) {
     const stageW = stage.clientWidth;
@@ -524,20 +749,28 @@
       subEl.style.display = "none";
     }
 
-    // Coordinates state
+    // Coordinates and scale state
     if (args.headline_x !== undefined) state.headline_x = Number(args.headline_x);
     if (args.headline_y !== undefined) state.headline_y = Number(args.headline_y);
+    if (args.headline_scale !== undefined) state.headline_scale = Number(args.headline_scale);
     if (args.source_x !== undefined) state.source_x = Number(args.source_x);
     if (args.source_y !== undefined) state.source_y = Number(args.source_y);
+    if (args.source_scale !== undefined) state.source_scale = Number(args.source_scale);
     if (args.logo_x !== undefined) state.logo_x = Number(args.logo_x);
     if (args.logo_y !== undefined) state.logo_y = Number(args.logo_y);
     if (args.frame_x !== undefined) state.frame_x = Number(args.frame_x);
     if (args.frame_y !== undefined) state.frame_y = Number(args.frame_y);
 
     // 1. Headline
-    if (args.headline_enabled && args.headline_text) {
+    if (args.headline_enabled) {
       elHeadline.style.display = "flex";
-      document.getElementById("headline-text-content").innerText = args.headline_text;
+      const hlTextEl = document.getElementById("headline-text-content");
+      const displayText = (args.headline_text && String(args.headline_text).trim()) ? String(args.headline_text).trim() : "TIÊU ĐỀ VIDEO MẪU";
+      hlTextEl.innerText = displayText;
+      if (args.headline_color) {
+        hlTextEl.style.color = args.headline_color;
+      }
+      applyHeadlineScale(state.headline_scale);
       const durEl = document.getElementById("dur-headline");
       if (args.headline_duration > 0) {
         durEl.style.display = "inline-block";
@@ -551,9 +784,15 @@
     }
 
     // 2. Source Badge
-    if (args.source_enabled && args.source_text) {
+    if (args.source_enabled) {
       elSource.style.display = "flex";
-      document.getElementById("source-text-content").innerText = args.source_text.startsWith("📌") ? args.source_text : `📌 ${args.source_text}`;
+      const srcTextEl = document.getElementById("source-text-content");
+      const srcDisplay = (args.source_text && String(args.source_text).trim()) ? String(args.source_text).trim() : "Nguồn: VnExpress";
+      srcTextEl.innerText = srcDisplay.startsWith("📌") ? srcDisplay : `📌 ${srcDisplay}`;
+      if (args.source_color) {
+        srcTextEl.style.color = args.source_color;
+      }
+      applySourceScale(state.source_scale);
       const durEl = document.getElementById("dur-source");
       if (args.source_duration > 0) {
         durEl.style.display = "inline-block";

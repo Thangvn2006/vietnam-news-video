@@ -121,6 +121,41 @@ class TestVideoTemplate(unittest.TestCase):
             self.assertEqual(img_badge.size, (1080, 1920))
             self.assertEqual(img_badge.mode, "RGBA")
 
+    def test_create_headline_banner_scale_color_and_long_title(self):
+        # Test long Vietnamese headline that would previously be truncated
+        long_headline = "Bộ Giáo dục và Đào tạo chính thức công bố phương án tổ chức kỳ thi tốt nghiệp trung học phổ thông từ năm 2025"
+        for scale in [0.7, 1.0, 1.4]:
+            for color in ["#FFFFFF", "#FACC15", "#EF4444", "#38BDF8"]:
+                img = video_template.create_headline_banner_image(
+                    headline_badge="BẢN TIN",
+                    headline_title=long_headline,
+                    width=1080,
+                    height=1920,
+                    position="top",
+                    pos_x=50.0,
+                    pos_y=8.0,
+                    font_scale=scale,
+                    text_color=color,
+                )
+                self.assertEqual(img.size, (1080, 1920))
+                self.assertEqual(img.mode, "RGBA")
+
+    def test_create_source_badge_scale_and_color(self):
+        for scale in [0.6, 1.0, 1.5]:
+            for color in ["#F8FAFC", "#FACC15", "#38BDF8"]:
+                img = video_template.create_source_badge_image(
+                    text="Nguồn: Báo Tuổi Trẻ Online",
+                    width=1080,
+                    height=1920,
+                    position="top_right",
+                    pos_x=75.0,
+                    pos_y=12.0,
+                    font_scale=scale,
+                    text_color=color,
+                )
+                self.assertEqual(img.size, (1080, 1920))
+                self.assertEqual(img.mode, "RGBA")
+
     def test_create_logo_overlay_image(self):
         import tempfile
         dummy_logo = Image.new("RGBA", (200, 100), (0, 120, 255, 255))
