@@ -2,7 +2,10 @@ import errno
 import re
 import threading
 import time
-import tomllib
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch

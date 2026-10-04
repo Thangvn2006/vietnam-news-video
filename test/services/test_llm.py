@@ -2,7 +2,10 @@ import json
 import os
 import sys
 import tempfile
-import tomllib
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib
 import types
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -2302,7 +2305,7 @@ class TestSocialMetadata(unittest.TestCase):
             ["上海 旅行", "#việt nam", "  ", "@bad!chars"], count=5
         )
 
-        self.assertEqual(tags, ["# Shanghai travel", "#việtnam", "#badchars"])
+        self.assertEqual(tags, ["#上海旅行", "#việtnam", "#badchars"])
 
     def test_parse_social_metadata_recovers_embedded_json(self):
         raw = 'Sure: {"title":"T","caption":"C","hashtags":["#x"]} thanks'

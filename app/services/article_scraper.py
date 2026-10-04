@@ -4,7 +4,7 @@ import ipaddress
 import urllib.parse
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Union
 
 import requests
 from bs4 import BeautifulSoup
@@ -518,13 +518,22 @@ def download_article_images(
 
 def generate_gemini_news_prompt(
     article: ScrapedArticle,
-    target_duration: int = 60,
+    target_duration: Union[int, str] = 60,
     language: str = "vi",
 ) -> str:
     """
     Generate an optimal prompt for Google Gemini to extract video components
     (Subject, Narration Script, Footage Search Keywords, Image Prompts) from the article.
     """
+    if isinstance(target_duration, str):
+        if not target_duration.isdigit():
+            # Caller passed (article, language) positionally
+            language = target_duration
+            target_duration = 60
+        else:
+            target_duration = int(target_duration)
+    target_duration = max(15, int(target_duration))
+
     lang_instruction = f"Toàn bộ tiêu đề và kịch bản thuyết minh phải được viết bằng {language}." if language and language != "auto" else "Giữ nguyên ngôn ngữ gốc của bài báo."
     return f"""Bạn là một chuyên gia sáng tạo nội dung video ngắn (Shorts / Reels / TikTok) và biên tập viên tin tức truyền hình chuyên nghiệp.
 

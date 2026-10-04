@@ -4485,25 +4485,20 @@ def _render_loomloom_video_settings(params):
     )
     _set_runtime_config("ui", "loomloom_video_scene_count", int(scene_count))
     if coverage_plan is not None:
-        coverage_seconds = int(scene_count) * coverage_plan["clip_duration"]
-        shortfall_min = max(
-            coverage_plan["duration_min"] - coverage_seconds, 0.0
-        )
-        shortfall_max = max(
-            coverage_plan["duration_max"] - coverage_seconds, 0.0
-        )
-        duration_basis = tr(coverage_plan["basis_key"]).format(
-            duration=_format_numeric_range(
-                coverage_plan["duration_min"], coverage_plan["duration_max"]
-            )
+        clip_dur = float(coverage_plan["clip_duration"])
+        dur_min = float(coverage_plan["duration_min"])
+        dur_max = float(coverage_plan["duration_max"])
+        coverage_seconds = int(scene_count) * clip_dur
+        shortfall_min = max(dur_min - coverage_seconds, 0.0)
+        shortfall_max = max(dur_max - coverage_seconds, 0.0)
+        duration_basis = tr(str(coverage_plan["basis_key"])).format(
+            duration=_format_numeric_range(dur_min, dur_max)
         )
         coverage_message = tr("AI Video Material Coverage").format(
             basis=duration_basis,
-            clip=_format_numeric_range(
-                coverage_plan["clip_duration"], coverage_plan["clip_duration"]
-            ),
+            clip=_format_numeric_range(clip_dur, clip_dur),
             needed=_format_numeric_range(
-                coverage_plan["needed_min"], coverage_plan["needed_max"], digits=0
+                float(coverage_plan["needed_min"]), float(coverage_plan["needed_max"]), digits=0
             ),
             count=int(scene_count),
             coverage=_format_numeric_range(coverage_seconds, coverage_seconds),
@@ -10501,9 +10496,11 @@ def _render_system_diagnostic_and_update_view():
                         st.code(update_log)
             else:
                 st.info(f"✅ **{_i18n('Tuyệt vời! Bạn đang sử dụng phiên bản mới nhất từ GitHub.', 'Great! You are running the latest version from GitHub.')}**")
-                c_ahead = git_info.get("commits_ahead", 0)
-                if c_ahead > 0:
-                    st.caption(f"ℹ️ {_i18n(f'Bạn đang có {c_ahead} commit cục bộ mới hơn remote.', f'You have {c_ahead} local commits ahead of remote.')}")
+                commits_ahead = int(git_info.get("commits_ahead", 0) or 0)
+                if commits_ahead > 0:
+                    ahead_msg_vi = f"Bạn đang có {commits_ahead} commit cục bộ mới hơn remote."
+                    ahead_msg_en = f"You have {commits_ahead} local commits ahead of remote."
+                    st.caption(f"ℹ️ {_i18n(ahead_msg_vi, ahead_msg_en)}")
 
 
 def _render_create_video_view():

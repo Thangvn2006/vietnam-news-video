@@ -1146,7 +1146,7 @@ def save_video(video_url: str, save_dir: str = "") -> str:
     # not sent in HTTP requests, so they do not affect the downloaded bytes.
     url_hash = utils.md5(video_url.split("#", 1)[0])
     video_id = f"vid-{url_hash}"
-    video_path = f"{save_dir}/{video_id}.mp4"
+    video_path = os.path.join(save_dir, f"{video_id}.mp4")
 
     # if video already exists, return the path
     if os.path.exists(video_path) and os.path.getsize(video_path) > 0:

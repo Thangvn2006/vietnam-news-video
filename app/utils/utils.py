@@ -531,6 +531,10 @@ def resolve_ui_language(
     if default_match:
         return default_match
 
+    en_match = match_language("en")
+    if en_match:
+        return en_match
+
     # Normal projects always contain English; keep empty language collections to avoid corrupted language directories leaving pages
     # An exception is thrown directly during initialization, and subsequent translation functions will continue to display the original key for diagnosis.
     return supported[0] if supported else default_language
