@@ -5600,8 +5600,74 @@ def _sync_settings_src_dur():
     st.session_state["preview_source_badge_duration_select"] = val
 
 
+def _sync_preview_hl_x():
+    val = float(st.session_state.get("pv_slider_hl_x", 50.0))
+    st.session_state["headline_x"] = val
+    st.session_state["settings_headline_x_slider"] = val
+
+def _sync_settings_hl_x():
+    val = float(st.session_state.get("settings_headline_x_slider", 50.0))
+    st.session_state["headline_x"] = val
+    st.session_state["pv_slider_hl_x"] = val
+
+def _sync_preview_hl_y():
+    val = float(st.session_state.get("pv_slider_hl_y", 8.0))
+    st.session_state["headline_y"] = val
+    st.session_state["settings_headline_y_slider"] = val
+
+def _sync_settings_hl_y():
+    val = float(st.session_state.get("settings_headline_y_slider", 8.0))
+    st.session_state["headline_y"] = val
+    st.session_state["pv_slider_hl_y"] = val
+
+def _sync_preview_hl_scale():
+    val = round(float(st.session_state.get("pv_slider_hl_scale", 100)))
+    st.session_state["headline_scale"] = val / 100.0
+    st.session_state["settings_headline_scale_slider"] = val
+
+def _sync_settings_hl_scale():
+    val = round(float(st.session_state.get("settings_headline_scale_slider", 100)))
+    st.session_state["headline_scale"] = val / 100.0
+    st.session_state["pv_slider_hl_scale"] = val
+
+def _sync_preview_src_x():
+    val = float(st.session_state.get("pv_slider_sb_x", 75.0))
+    st.session_state["source_badge_x"] = val
+    st.session_state["settings_source_x_slider"] = val
+
+def _sync_settings_src_x():
+    val = float(st.session_state.get("settings_source_x_slider", 75.0))
+    st.session_state["source_badge_x"] = val
+    st.session_state["pv_slider_sb_x"] = val
+
+def _sync_preview_src_y():
+    val = float(st.session_state.get("pv_slider_sb_y", 12.0))
+    st.session_state["source_badge_y"] = val
+    st.session_state["settings_source_y_slider"] = val
+
+def _sync_settings_src_y():
+    val = float(st.session_state.get("settings_source_y_slider", 12.0))
+    st.session_state["source_badge_y"] = val
+    st.session_state["pv_slider_sb_y"] = val
+
+def _sync_preview_src_scale():
+    val = round(float(st.session_state.get("pv_slider_sb_scale", 100)))
+    st.session_state["source_badge_scale"] = val / 100.0
+    st.session_state["settings_source_scale_slider"] = val
+
+def _sync_settings_src_scale():
+    val = round(float(st.session_state.get("settings_source_scale_slider", 100)))
+    st.session_state["source_badge_scale"] = val / 100.0
+    st.session_state["pv_slider_sb_scale"] = val
+
+
 def _sync_overlay_session_state(params):
     """Ensure all overlay states (Headline, Source badge, Logo, Frame) are initialized and synchronized."""
+    pending = st.session_state.pop("_pending_canvas_sync", None)
+    if isinstance(pending, dict):
+        for k, v in pending.items():
+            st.session_state[k] = v
+
     # 1. Headline banner
     st.session_state.setdefault("headline_enabled", getattr(params, "headline_enabled", True))
     if "headline_text" not in st.session_state or st.session_state["headline_text"] is None:
@@ -5617,6 +5683,12 @@ def _sync_overlay_session_state(params):
     st.session_state.setdefault("settings_headline_text_input", st.session_state["headline_text"])
     st.session_state.setdefault("preview_headline_duration_select", st.session_state["headline_duration"])
     st.session_state.setdefault("settings_headline_duration_select", st.session_state["headline_duration"])
+    st.session_state.setdefault("settings_headline_x_slider", st.session_state["headline_x"])
+    st.session_state.setdefault("pv_slider_hl_x", st.session_state["headline_x"])
+    st.session_state.setdefault("settings_headline_y_slider", st.session_state["headline_y"])
+    st.session_state.setdefault("pv_slider_hl_y", st.session_state["headline_y"])
+    st.session_state.setdefault("settings_headline_scale_slider", round(float(st.session_state["headline_scale"]) * 100))
+    st.session_state.setdefault("pv_slider_hl_scale", round(float(st.session_state["headline_scale"]) * 100))
 
     # 2. Source badge
     st.session_state.setdefault("source_badge_enabled", getattr(params, "source_badge_enabled", True))
@@ -5633,6 +5705,12 @@ def _sync_overlay_session_state(params):
     st.session_state.setdefault("source_badge_text_input", st.session_state["source_badge_text"])
     st.session_state.setdefault("preview_source_badge_duration_select", st.session_state["source_badge_duration"])
     st.session_state.setdefault("settings_source_badge_duration_select", st.session_state["source_badge_duration"])
+    st.session_state.setdefault("settings_source_x_slider", st.session_state["source_badge_x"])
+    st.session_state.setdefault("pv_slider_sb_x", st.session_state["source_badge_x"])
+    st.session_state.setdefault("settings_source_y_slider", st.session_state["source_badge_y"])
+    st.session_state.setdefault("pv_slider_sb_y", st.session_state["source_badge_y"])
+    st.session_state.setdefault("settings_source_scale_slider", round(float(st.session_state["source_badge_scale"]) * 100))
+    st.session_state.setdefault("pv_slider_sb_scale", round(float(st.session_state["source_badge_scale"]) * 100))
 
     # 3. Brand Logo / Photo
     st.session_state.setdefault("logo_enabled", getattr(params, "logo_enabled", False))
@@ -5748,6 +5826,7 @@ def _render_frame_and_source_settings(params):
                     value=float(st.session_state.get("headline_x", 50.0)),
                     step=0.5,
                     key="settings_headline_x_slider",
+                    on_change=_sync_settings_hl_x,
                 )
                 st.session_state["headline_x"] = hl_x_val
                 params.headline_x = hl_x_val
@@ -5759,6 +5838,7 @@ def _render_frame_and_source_settings(params):
                     value=float(st.session_state.get("headline_y", 8.0)),
                     step=0.5,
                     key="settings_headline_y_slider",
+                    on_change=_sync_settings_hl_y,
                 )
                 st.session_state["headline_y"] = hl_y_val
                 params.headline_y = hl_y_val
@@ -5773,6 +5853,18 @@ def _render_frame_and_source_settings(params):
                     params.headline_y = 8.0
                     params.headline_scale = 1.0
                     params.headline_color = "#FFFFFF"
+                    if isinstance(st.session_state.get("_last_seen_canvas_res"), dict):
+                        st.session_state["_last_seen_canvas_res"]["headline_x"] = 50.0
+                        st.session_state["_last_seen_canvas_res"]["headline_y"] = 8.0
+                        st.session_state["_last_seen_canvas_res"]["headline_scale"] = 1.0
+                    st.session_state["_pending_canvas_sync"] = {
+                        "settings_headline_x_slider": 50.0,
+                        "settings_headline_y_slider": 8.0,
+                        "settings_headline_scale_slider": 100,
+                        "pv_slider_hl_x": 50.0,
+                        "pv_slider_hl_y": 8.0,
+                        "pv_slider_hl_scale": 100,
+                    }
                     st.rerun(scope="app")
 
             c_hl_sz, c_hl_col = st.columns([1.5, 1.5])
@@ -5784,6 +5876,7 @@ def _render_frame_and_source_settings(params):
                     value=round(float(st.session_state.get("headline_scale", 1.0)) * 100),
                     step=5,
                     key="settings_headline_scale_slider",
+                    on_change=_sync_settings_hl_scale,
                     help=_i18n("Thu nhỏ cỡ chữ để tiêu đề dài hiển thị trọn vẹn trên màn hình hoặc phóng to để nổi bật", "Scale down font size so long headlines fit completely on screen, or scale up to stand out"),
                 )
                 st.session_state["headline_scale"] = hl_scale_val / 100.0
@@ -5847,6 +5940,7 @@ def _render_frame_and_source_settings(params):
                     value=float(st.session_state.get("source_badge_x", 75.0)),
                     step=0.5,
                     key="settings_source_x_slider",
+                    on_change=_sync_settings_src_x,
                 )
                 st.session_state["source_badge_x"] = sb_x_val
                 params.source_badge_x = sb_x_val
@@ -5858,6 +5952,7 @@ def _render_frame_and_source_settings(params):
                     value=float(st.session_state.get("source_badge_y", 12.0)),
                     step=0.5,
                     key="settings_source_y_slider",
+                    on_change=_sync_settings_src_y,
                 )
                 st.session_state["source_badge_y"] = sb_y_val
                 params.source_badge_y = sb_y_val
@@ -5872,6 +5967,18 @@ def _render_frame_and_source_settings(params):
                     params.source_badge_y = 12.0
                     params.source_badge_scale = 1.0
                     params.source_badge_color = "#F8FAFC"
+                    if isinstance(st.session_state.get("_last_seen_canvas_res"), dict):
+                        st.session_state["_last_seen_canvas_res"]["source_x"] = 75.0
+                        st.session_state["_last_seen_canvas_res"]["source_y"] = 12.0
+                        st.session_state["_last_seen_canvas_res"]["source_scale"] = 1.0
+                    st.session_state["_pending_canvas_sync"] = {
+                        "settings_source_x_slider": 75.0,
+                        "settings_source_y_slider": 12.0,
+                        "settings_source_scale_slider": 100,
+                        "pv_slider_sb_x": 75.0,
+                        "pv_slider_sb_y": 12.0,
+                        "pv_slider_sb_scale": 100,
+                    }
                     st.rerun(scope="app")
 
             c_sb_sz, c_sb_col = st.columns([1.5, 1.5])
@@ -5883,6 +5990,7 @@ def _render_frame_and_source_settings(params):
                     value=round(float(st.session_state.get("source_badge_scale", 1.0)) * 100),
                     step=5,
                     key="settings_source_scale_slider",
+                    on_change=_sync_settings_src_scale,
                     help=_i18n("Phóng to/thu nhỏ kích cỡ hiển thị của nhãn nguồn", "Scale source badge size on screen"),
                 )
                 st.session_state["source_badge_scale"] = sb_scale_val / 100.0
@@ -9602,69 +9710,122 @@ def _render_live_video_preview(params: VideoParams):
 
             # Sync dragged coordinates and scales back into Streamlit state and widget keys
             if canvas_res and isinstance(canvas_res, dict):
-                if "headline_x" in canvas_res:
-                    hx = float(canvas_res["headline_x"])
-                    st.session_state["headline_x"] = hx
-                    st.session_state["pv_slider_hl_x"] = hx
-                    st.session_state["settings_headline_x_slider"] = hx
-                    params.headline_x = hx
-                if "headline_y" in canvas_res:
-                    hy = float(canvas_res["headline_y"])
-                    st.session_state["headline_y"] = hy
-                    st.session_state["pv_slider_hl_y"] = hy
-                    st.session_state["settings_headline_y_slider"] = hy
-                    params.headline_y = hy
-                if "headline_scale" in canvas_res:
-                    hsc = float(canvas_res["headline_scale"])
-                    st.session_state["headline_scale"] = hsc
-                    st.session_state["pv_slider_hl_scale"] = round(hsc * 100)
-                    st.session_state["settings_headline_scale_slider"] = round(hsc * 100)
-                    params.headline_scale = hsc
-                if "headline_text" in canvas_res:
-                    htxt = str(canvas_res["headline_text"]).strip()
-                    st.session_state["headline_text"] = htxt
-                    st.session_state["txt_preview_headline_val"] = htxt
-                    st.session_state["settings_headline_text_input"] = htxt
-                    params.headline_text = htxt
-                if "source_x" in canvas_res:
-                    sx = float(canvas_res["source_x"])
-                    st.session_state["source_badge_x"] = sx
-                    st.session_state["pv_slider_sb_x"] = sx
-                    st.session_state["settings_source_x_slider"] = sx
-                    params.source_badge_x = sx
-                if "source_y" in canvas_res:
-                    sy = float(canvas_res["source_y"])
-                    st.session_state["source_badge_y"] = sy
-                    st.session_state["pv_slider_sb_y"] = sy
-                    st.session_state["settings_source_y_slider"] = sy
-                    params.source_badge_y = sy
-                if "source_scale" in canvas_res:
-                    ssc = float(canvas_res["source_scale"])
-                    st.session_state["source_badge_scale"] = ssc
-                    st.session_state["pv_slider_sb_scale"] = round(ssc * 100)
-                    params.source_badge_scale = ssc
-                if "source_text" in canvas_res:
-                    stxt = str(canvas_res["source_text"]).strip()
-                    st.session_state["source_badge_text"] = stxt
-                    st.session_state["txt_preview_source_val"] = stxt
-                    st.session_state["source_badge_text_input"] = stxt
-                    params.source_badge_text = stxt
-                if "logo_x" in canvas_res:
-                    lx = float(canvas_res["logo_x"])
-                    st.session_state["logo_x"] = lx
-                    params.logo_x = lx
-                if "logo_y" in canvas_res:
-                    ly = float(canvas_res["logo_y"])
-                    st.session_state["logo_y"] = ly
-                    params.logo_y = ly
-                if "frame_x" in canvas_res:
-                    fx = float(canvas_res["frame_x"])
-                    st.session_state["frame_x"] = fx
-                    params.frame_x = fx
-                if "frame_y" in canvas_res:
-                    fy = float(canvas_res["frame_y"])
-                    st.session_state["frame_y"] = fy
-                    params.frame_y = fy
+                last_res = st.session_state.get("_last_seen_canvas_res")
+                if last_res is None:
+                    st.session_state["_last_seen_canvas_res"] = dict(canvas_res)
+                elif canvas_res != last_res:
+                    st.session_state["_last_seen_canvas_res"] = dict(canvas_res)
+                    pending_sync = {}
+                    has_changed = False
+
+                    if "headline_x" in canvas_res:
+                        hx = float(canvas_res["headline_x"])
+                        if abs(hx - float(last_res.get("headline_x", 50.0))) > 0.05:
+                            st.session_state["headline_x"] = hx
+                            params.headline_x = hx
+                            pending_sync["settings_headline_x_slider"] = hx
+                            pending_sync["pv_slider_hl_x"] = hx
+                            has_changed = True
+
+                    if "headline_y" in canvas_res:
+                        hy = float(canvas_res["headline_y"])
+                        if abs(hy - float(last_res.get("headline_y", 8.0))) > 0.05:
+                            st.session_state["headline_y"] = hy
+                            params.headline_y = hy
+                            pending_sync["settings_headline_y_slider"] = hy
+                            pending_sync["pv_slider_hl_y"] = hy
+                            has_changed = True
+
+                    if "headline_scale" in canvas_res:
+                        hsc = float(canvas_res["headline_scale"])
+                        cur_scale = float(last_res.get("headline_scale", 1.0))
+                        if abs(hsc - cur_scale) > 0.02 or round(hsc * 100) != round(cur_scale * 100):
+                            st.session_state["headline_scale"] = hsc
+                            params.headline_scale = hsc
+                            scale_pct = round(hsc * 100)
+                            pending_sync["settings_headline_scale_slider"] = scale_pct
+                            pending_sync["pv_slider_hl_scale"] = scale_pct
+                            has_changed = True
+
+                    if "headline_text" in canvas_res:
+                        htxt = str(canvas_res["headline_text"]).strip()
+                        if htxt and htxt != str(last_res.get("headline_text", "")).strip():
+                            st.session_state["headline_text"] = htxt
+                            params.headline_text = htxt
+                            pending_sync["settings_headline_text_input"] = htxt
+                            pending_sync["txt_preview_headline_val"] = htxt
+                            has_changed = True
+
+                    if "source_x" in canvas_res:
+                        sx = float(canvas_res["source_x"])
+                        if abs(sx - float(last_res.get("source_x", 75.0))) > 0.05:
+                            st.session_state["source_badge_x"] = sx
+                            params.source_badge_x = sx
+                            pending_sync["settings_source_x_slider"] = sx
+                            pending_sync["pv_slider_sb_x"] = sx
+                            has_changed = True
+
+                    if "source_y" in canvas_res:
+                        sy = float(canvas_res["source_y"])
+                        if abs(sy - float(last_res.get("source_y", 12.0))) > 0.05:
+                            st.session_state["source_badge_y"] = sy
+                            params.source_badge_y = sy
+                            pending_sync["settings_source_y_slider"] = sy
+                            pending_sync["pv_slider_sb_y"] = sy
+                            has_changed = True
+
+                    if "source_scale" in canvas_res:
+                        ssc = float(canvas_res["source_scale"])
+                        cur_src_scale = float(last_res.get("source_scale", 1.0))
+                        if abs(ssc - cur_src_scale) > 0.02 or round(ssc * 100) != round(cur_src_scale * 100):
+                            st.session_state["source_badge_scale"] = ssc
+                            params.source_badge_scale = ssc
+                            scale_pct = round(ssc * 100)
+                            pending_sync["settings_source_scale_slider"] = scale_pct
+                            pending_sync["pv_slider_sb_scale"] = scale_pct
+                            has_changed = True
+
+                    if "source_text" in canvas_res:
+                        stxt = str(canvas_res["source_text"]).strip()
+                        if stxt and stxt != str(last_res.get("source_text", "")).strip():
+                            st.session_state["source_badge_text"] = stxt
+                            params.source_badge_text = stxt
+                            pending_sync["source_badge_text_input"] = stxt
+                            pending_sync["txt_preview_source_val"] = stxt
+                            has_changed = True
+
+                    if "logo_x" in canvas_res:
+                        lx = float(canvas_res["logo_x"])
+                        if abs(lx - float(last_res.get("logo_x", 8.0))) > 0.05:
+                            st.session_state["logo_x"] = lx
+                            params.logo_x = lx
+
+                    if "logo_y" in canvas_res:
+                        ly = float(canvas_res["logo_y"])
+                        if abs(ly - float(last_res.get("logo_y", 6.0))) > 0.05:
+                            st.session_state["logo_y"] = ly
+                            params.logo_y = ly
+
+                    if "frame_x" in canvas_res:
+                        fx = float(canvas_res["frame_x"])
+                        if abs(fx - float(last_res.get("frame_x", 0.0))) > 0.05:
+                            st.session_state["frame_x"] = fx
+                            params.frame_x = fx
+
+                    if "frame_y" in canvas_res:
+                        fy = float(canvas_res["frame_y"])
+                        if abs(fy - float(last_res.get("frame_y", 0.0))) > 0.05:
+                            st.session_state["frame_y"] = fy
+                            params.frame_y = fy
+
+                    if has_changed and pending_sync:
+                        existing_pending = st.session_state.get("_pending_canvas_sync", {})
+                        if isinstance(existing_pending, dict):
+                            existing_pending.update(pending_sync)
+                            st.session_state["_pending_canvas_sync"] = existing_pending
+                        else:
+                            st.session_state["_pending_canvas_sync"] = pending_sync
+                        st.rerun(scope="app")
 
             # Interactive Multi-Tab Control for Headline, Source Badge, Logo, and Frame
             preview_tabs = st.tabs([
@@ -9721,11 +9882,27 @@ def _render_live_video_preview(params: VideoParams):
                     st.caption(f"📍 **{_i18n('Tọa độ & Kích cỡ (kéo thả hoặc tinh chỉnh):', 'Coordinates & Size (drag or adjust):')}** `X: {st.session_state.get('headline_x', 50.0):.1f}%`, `Y: {st.session_state.get('headline_y', 8.0):.1f}%`, `Cỡ: {round(float(st.session_state.get('headline_scale', 1.0)) * 100)}%`")
                     c_hx, c_hy, c_hrst = st.columns([1.2, 1.2, 0.8])
                     with c_hx:
-                        pv_hl_x = st.slider("X (%)", 0.0, 100.0, float(st.session_state.get("headline_x", 50.0)), step=0.5, key="pv_slider_hl_x")
+                        pv_hl_x = st.slider(
+                            "X (%)",
+                            0.0,
+                            100.0,
+                            float(st.session_state.get("headline_x", 50.0)),
+                            step=0.5,
+                            key="pv_slider_hl_x",
+                            on_change=_sync_preview_hl_x,
+                        )
                         st.session_state["headline_x"] = pv_hl_x
                         params.headline_x = pv_hl_x
                     with c_hy:
-                        pv_hl_y = st.slider("Y (%)", 0.0, 100.0, float(st.session_state.get("headline_y", 8.0)), step=0.5, key="pv_slider_hl_y")
+                        pv_hl_y = st.slider(
+                            "Y (%)",
+                            0.0,
+                            100.0,
+                            float(st.session_state.get("headline_y", 8.0)),
+                            step=0.5,
+                            key="pv_slider_hl_y",
+                            on_change=_sync_preview_hl_y,
+                        )
                         st.session_state["headline_y"] = pv_hl_y
                         params.headline_y = pv_hl_y
                     with c_hrst:
@@ -9739,6 +9916,18 @@ def _render_live_video_preview(params: VideoParams):
                             params.headline_y = 8.0
                             params.headline_scale = 1.0
                             params.headline_color = "#FFFFFF"
+                            if isinstance(st.session_state.get("_last_seen_canvas_res"), dict):
+                                st.session_state["_last_seen_canvas_res"]["headline_x"] = 50.0
+                                st.session_state["_last_seen_canvas_res"]["headline_y"] = 8.0
+                                st.session_state["_last_seen_canvas_res"]["headline_scale"] = 1.0
+                            st.session_state["_pending_canvas_sync"] = {
+                                "settings_headline_x_slider": 50.0,
+                                "settings_headline_y_slider": 8.0,
+                                "settings_headline_scale_slider": 100,
+                                "pv_slider_hl_x": 50.0,
+                                "pv_slider_hl_y": 8.0,
+                                "pv_slider_hl_scale": 100,
+                            }
                             st.rerun(scope="app")
 
                     c_hlsz, c_hlcol = st.columns([1.5, 1.5])
@@ -9749,6 +9938,7 @@ def _render_live_video_preview(params: VideoParams):
                             round(float(st.session_state.get("headline_scale", 1.0)) * 100),
                             step=5,
                             key="pv_slider_hl_scale",
+                            on_change=_sync_preview_hl_scale,
                             help=_i18n("Kéo góc ⤡ trên màn hình video hoặc chỉnh slider để phóng to/thu nhỏ tiêu đề, giúp tiêu đề dài hiển thị trọn vẹn", "Resize headline on video screen or slider so long headlines fit completely"),
                         )
                         st.session_state["headline_scale"] = pv_hl_scale / 100.0
@@ -9809,11 +9999,27 @@ def _render_live_video_preview(params: VideoParams):
                     st.caption(f"📍 **{_i18n('Tọa độ & Kích cỡ (kéo thả hoặc tinh chỉnh):', 'Coordinates & Size (drag or adjust):')}** `X: {st.session_state.get('source_badge_x', 75.0):.1f}%`, `Y: {st.session_state.get('source_badge_y', 12.0):.1f}%`, `Cỡ: {round(float(st.session_state.get('source_badge_scale', 1.0)) * 100)}%`")
                     c_sx, c_sy, c_srst = st.columns([1.2, 1.2, 0.8])
                     with c_sx:
-                        pv_sb_x = st.slider("X (%)", 0.0, 100.0, float(st.session_state.get("source_badge_x", 75.0)), step=0.5, key="pv_slider_sb_x")
+                        pv_sb_x = st.slider(
+                            "X (%)",
+                            0.0,
+                            100.0,
+                            float(st.session_state.get("source_badge_x", 75.0)),
+                            step=0.5,
+                            key="pv_slider_sb_x",
+                            on_change=_sync_preview_src_x,
+                        )
                         st.session_state["source_badge_x"] = pv_sb_x
                         params.source_badge_x = pv_sb_x
                     with c_sy:
-                        pv_sb_y = st.slider("Y (%)", 0.0, 100.0, float(st.session_state.get("source_badge_y", 12.0)), step=0.5, key="pv_slider_sb_y")
+                        pv_sb_y = st.slider(
+                            "Y (%)",
+                            0.0,
+                            100.0,
+                            float(st.session_state.get("source_badge_y", 12.0)),
+                            step=0.5,
+                            key="pv_slider_sb_y",
+                            on_change=_sync_preview_src_y,
+                        )
                         st.session_state["source_badge_y"] = pv_sb_y
                         params.source_badge_y = pv_sb_y
                     with c_srst:
@@ -9827,16 +10033,30 @@ def _render_live_video_preview(params: VideoParams):
                             params.source_badge_y = 12.0
                             params.source_badge_scale = 1.0
                             params.source_badge_color = "#F8FAFC"
+                            if isinstance(st.session_state.get("_last_seen_canvas_res"), dict):
+                                st.session_state["_last_seen_canvas_res"]["source_x"] = 75.0
+                                st.session_state["_last_seen_canvas_res"]["source_y"] = 12.0
+                                st.session_state["_last_seen_canvas_res"]["source_scale"] = 1.0
+                            st.session_state["_pending_canvas_sync"] = {
+                                "settings_source_x_slider": 75.0,
+                                "settings_source_y_slider": 12.0,
+                                "settings_source_scale_slider": 100,
+                                "pv_slider_sb_x": 75.0,
+                                "pv_slider_sb_y": 12.0,
+                                "pv_slider_sb_scale": 100,
+                            }
                             st.rerun(scope="app")
 
                     c_sbsz, c_sbcol = st.columns([1.5, 1.5])
                     with c_sbsz:
                         pv_sb_scale = st.slider(
                             _i18n("Kích cỡ hiển thị (%)", "Source Badge Scale (%)"),
-                            50, 200,
+                            50,
+                            200,
                             round(float(st.session_state.get("source_badge_scale", 1.0)) * 100),
                             step=5,
                             key="pv_slider_sb_scale",
+                            on_change=_sync_preview_src_scale,
                             help=_i18n("Kéo góc ⤡ trên màn hình video hoặc chỉnh slider để phóng to/thu nhỏ nhãn nguồn", "Resize source badge on video screen or slider"),
                         )
                         st.session_state["source_badge_scale"] = pv_sb_scale / 100.0
