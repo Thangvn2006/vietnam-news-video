@@ -112,6 +112,7 @@ class VideoParams(BaseModel):
     video_subject: str
     video_script: str = ""  # Script used to generate the video
     video_terms: Optional[str | List[str]] = None  # Keywords used to generate the video
+    article_url: Optional[str] = ""  # Original news article URL
     video_aspect: Optional[VideoAspect] = VideoAspect.portrait
     video_fit_mode: VideoFitMode = VideoFitMode.cover
     video_concat_mode: Optional[VideoConcatMode] = VideoConcatMode.random

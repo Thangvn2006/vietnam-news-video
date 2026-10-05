@@ -1,6 +1,5 @@
 """System diagnostic health check and Git auto-update service for VietNamNewsVideo."""
 
-import json
 import os
 import shutil
 import subprocess

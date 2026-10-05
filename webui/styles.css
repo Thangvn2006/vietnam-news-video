@@ -616,5 +616,85 @@ div[class*="st-key-btn_del_req_"] button:hover {
     box-shadow: 0 4px 14px rgba(239, 68, 68, 0.25) !important;
 }
 
+/* Social Media Card & Publishing Enhancements */
+.social-card {
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.8) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 18px 22px;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    transition: all 0.25s ease;
+}
+
+.social-card:hover {
+    border-color: rgba(255, 255, 255, 0.16);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+}
+
+.social-card-yt {
+    border-left: 4px solid #ef4444 !important;
+}
+
+.social-card-tt {
+    border-left: 4px solid #06b6d4 !important;
+}
+
+.social-badge-connected {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(34, 197, 94, 0.15);
+    color: #4ade80;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    padding: 3px 10px;
+    border-radius: 9999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.social-badge-disconnected {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(148, 163, 184, 0.12);
+    color: #94a3b8;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    padding: 3px 10px;
+    border-radius: 9999px;
+    font-size: 0.78rem;
+    font-weight: 500;
+}
+
+.social-badge-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.social-badge-dot-green {
+    background-color: #22c55e;
+    box-shadow: 0 0 8px #22c55e;
+}
+
+.social-badge-dot-gray {
+    background-color: #94a3b8;
+}
+
+.social-meta-chip {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 4px 10px;
+    font-size: 0.8rem;
+    color: #cbd5e1;
+    margin-right: 8px;
+    margin-top: 6px;
+}
+
+
 
 

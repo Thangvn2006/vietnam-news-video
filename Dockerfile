@@ -1,5 +1,5 @@
 # Use an official Python runtime as a parent image
-FROM python:3.11-slim-bullseye
+FROM python:3.11-slim-bookworm
 
 # Set the working directory in the container
 WORKDIR /VietNamNewsVideo
@@ -13,17 +13,17 @@ ENV PYTHONPATH="/VietNamNewsVideo"
 ARG DOCKER_BUILD_MIRROR=default
 ARG PIP_USE_OFFICIAL=1
 
-# Install system dependencies with retry logic
+# Install system dependencies with improved retry logic
 RUN set -u; \
     write_debian_sources() { \
         main_url="$1"; \
         security_url="$2"; \
-        printf 'deb %s bullseye main\ndeb %s bullseye-updates main\ndeb %s bullseye-security main\n' \
+        printf 'deb %s bookworm main\ndeb %s bookworm-updates main\ndeb %s bookworm-security main\n' \
             "$main_url" "$main_url" "$security_url" > /etc/apt/sources.list; \
         rm -rf /var/lib/apt/lists/*; \
     }; \
     install_system_dependencies() { \
-        apt-get update && \
+        apt-get update --allow-releaseinfo-change && \
         apt-get install -y --no-install-recommends git ffmpeg; \
     }; \
     retry_system_dependencies() { \
@@ -51,12 +51,12 @@ RUN set -u; \
             write_debian_sources \
                 "https://mirrors.tuna.tsinghua.edu.cn/debian" \
                 "https://mirrors.tuna.tsinghua.edu.cn/debian-security"; \
-            if ! install_system_dependencies; then \
+            if ! retry_system_dependencies; then \
                 echo "Tsinghua mirror failed, switching to default Debian mirror" >&2; \
                 write_debian_sources \
                     "https://deb.debian.org/debian" \
                     "https://deb.debian.org/debian-security"; \
-                if ! install_system_dependencies; then \
+                if ! retry_system_dependencies; then \
                     echo "Failed to install system dependencies from all configured mirrors" >&2; \
                     exit 1; \
                 fi; \

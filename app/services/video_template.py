@@ -1,8 +1,8 @@
 import os
-from pathlib import Path
-from typing import Optional
-from PIL import Image, ImageDraw, ImageFont
+from typing import Any
+
 from loguru import logger
+from PIL import Image, ImageDraw, ImageFont
 
 from app.utils import utils
 
@@ -29,12 +29,12 @@ def get_default_font(size: int = 24) -> ImageFont.FreeTypeFont | ImageFont.Image
             full_path = os.path.join(font_dir, font_name)
             if os.path.exists(full_path):
                 return ImageFont.truetype(full_path, size)
-    except Exception as exc:
+    except (OSError, TypeError, ValueError) as exc:
         logger.debug(f"Failed to load custom font: {exc}")
 
     try:
         return ImageFont.load_default(size=size)
-    except Exception:
+    except (TypeError, ValueError, OSError):
         return ImageFont.load_default()
 
 
@@ -58,7 +58,6 @@ def create_frame_template(
     pad_bottom = int(height * 0.12)
     pad_x = 30
 
-    font_large = get_default_font(size=int(pad_top * 0.42))
     font_small = get_default_font(size=int(pad_top * 0.32))
 
     if with_checkerboard:
@@ -173,11 +172,11 @@ def create_frame_template(
     return img
 
 
-def _hex_to_rgba(color_str: str, alpha: int = 255, default_rgba=(255, 255, 255, 255)) -> tuple[int, int, int, int]:
+def _hex_to_rgba(color_str: str, alpha: int = 255, default_rgba: tuple[int, int, int, int] = (255, 255, 255, 255)) -> tuple[int, int, int, int]:
     """Parse hex color string (e.g. #FFF, #FFFFFF, #RRGGBBAA) to RGBA tuple."""
     if not color_str:
         return default_rgba
-    c = str(color_str).strip().lstrip("#")
+    c = color_str.strip().lstrip("#")
     if len(c) == 3:
         c = "".join([x * 2 for x in c])
     if len(c) == 6:
@@ -198,8 +197,8 @@ def create_source_badge_image(
     width: int = 1080,
     height: int = 1920,
     position: str = "top_right",
-    pos_x: Optional[float] = None,
-    pos_y: Optional[float] = None,
+    pos_x: float | None = None,
+    pos_y: float | None = None,
     font_scale: float = 1.0,
     text_color: str = "#F8FAFC",
 ) -> Image.Image:
@@ -268,8 +267,8 @@ def create_headline_banner_image(
     width: int,
     height: int,
     position: str = "top",
-    pos_x: Optional[float] = None,
-    pos_y: Optional[float] = None,
+    pos_x: float | None = None,
+    pos_y: float | None = None,
     font_scale: float = 1.0,
     text_color: str = "#FFFFFF",
 ) -> Image.Image:
@@ -305,13 +304,13 @@ def create_headline_banner_image(
         badge_h = 0
 
     max_banner_w = int(width * 0.94)
-    avail_text_w = max_banner_w - (badge_w + gap if badge_text else 0) - pad_x * 2
+    avail_text_w: int = int(max_banner_w - (badge_w + gap if badge_text else 0) - pad_x * 2)
 
     # Smart text wrap and auto-fitting:
     # If headline is long, wrap into multiple lines cleanly without truncating
     title_font = get_default_font(size=base_font_size)
 
-    def wrap_text_to_lines(text: str, font, max_w: int) -> list[str]:
+    def wrap_text_to_lines(text: str, font: ImageFont.ImageFont | Any, max_w: int) -> list[str]:
         words = text.split()
         if not words:
             return []
@@ -409,8 +408,8 @@ def create_logo_overlay_image(
     height: int,
     position: str = "top_left",
     logo_width: int = 140,
-    pos_x: Optional[float] = None,
-    pos_y: Optional[float] = None,
+    pos_x: float | None = None,
+    pos_y: float | None = None,
 ) -> Image.Image:
     """
     Generate an RGBA image of the video resolution containing the brand logo
@@ -449,7 +448,7 @@ def create_logo_overlay_image(
                 y = margin_y
 
             img.paste(logo_resized, (x, y), logo_resized)
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
         logger.warning(f"Failed to create logo overlay: {exc}")
 
     return img
@@ -459,8 +458,8 @@ def create_frame_overlay_image(
     frame_path: str,
     width: int,
     height: int,
-    pos_x: Optional[float] = 0.0,
-    pos_y: Optional[float] = 0.0,
+    pos_x: float | None = 0.0,
+    pos_y: float | None = 0.0,
 ) -> Image.Image:
     """
     Generate an RGBA image containing custom frame or overlay image
@@ -483,7 +482,7 @@ def create_frame_overlay_image(
                 fh = min(height, frame.height)
                 frame_resized = frame.resize((fw, fh), Image.Resampling.LANCZOS)
                 img.paste(frame_resized, (fx, fy), frame_resized)
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
         logger.warning(f"Failed to create frame overlay image: {exc}")
 
     return img
@@ -533,7 +532,7 @@ def get_available_templates(aspect: str = "9:16") -> list[dict[str, str]]:
     templates_dir = get_templates_dir()
     items = []
 
-    is_portrait = "9:16" in aspect or "portrait" in str(aspect).lower()
+    is_portrait = "9:16" in aspect or "portrait" in aspect.lower()
 
     if is_portrait:
         items.append({
@@ -593,7 +592,7 @@ def get_available_templates(aspect: str = "9:16") -> list[dict[str, str]]:
                     "path": full_path,
                     "is_checkerboard": False,
                 })
-    except Exception as exc:
+    except OSError as exc:
         logger.debug(f"Failed to scan custom templates: {exc}")
 
     return items

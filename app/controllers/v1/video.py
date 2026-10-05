@@ -1,6 +1,8 @@
 import mimetypes
 import os
 import pathlib
+
+mimetypes.add_type("application/x-subrip", ".srt")
 import shutil
 from typing import Union
 from urllib.parse import quote

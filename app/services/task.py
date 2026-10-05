@@ -1228,6 +1228,7 @@ def _run_cross_post(
     youtube_privacy_status: str,
     youtube_made_for_kids: bool = False,
     upload_account: dict | None = None,
+    article_url: str = "",
 ) -> None:
     """Cross-platform publishing is performed in the background, and only publishing-related task fields are added."""
     results = []
@@ -1268,10 +1269,13 @@ def _run_cross_post(
                 language=video_language or "",
                 platform=social_platform,
             )
+            desc = metadata.get("caption", "")
+            if article_url and article_url not in desc:
+                desc = f"{desc}\n\n📰 Nguồn bài báo: {article_url}".strip() if desc else f"📰 Nguồn bài báo: {article_url}"
             if has_youtube:
                 youtube_extra = {
-                    "youtube_title": metadata.get("title", video_subject),
-                    "youtube_description": metadata.get("caption", ""),
+                    "youtube_title": metadata.get("title", video_subject)[:100],
+                    "youtube_description": desc,
                     "tags": metadata.get("hashtags", []),
                     "privacyStatus": youtube_privacy_status,
                     "selfDeclaredMadeForKids": youtube_made_for_kids,
@@ -1283,6 +1287,9 @@ def _run_cross_post(
                 or video_subject
                 or "Check out this video! #shorts #viral"
             )
+            if article_url and article_url not in post_title:
+                if len(post_title) + len(article_url) + 20 < 2200:
+                    post_title = f"{post_title}\n\n📰 Nguồn: {article_url}"
 
         for video_path in video_paths:
             pending_result_index = None
@@ -1458,6 +1465,7 @@ def _schedule_cross_post(
             youtube_privacy_status,
             youtube_made_for_kids,
             upload_post.upload_post_service.snapshot_account(),
+            getattr(params, "article_url", "") or "",
         )
         _register_cross_post_future(task_id, future)
         future.add_done_callback(partial(_finalize_cross_post_future, task_id))

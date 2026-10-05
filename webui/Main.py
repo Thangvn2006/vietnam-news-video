@@ -17,7 +17,7 @@ import webbrowser
 from collections.abc import Iterable, Mapping
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any, Optional
 from uuid import UUID, uuid4
 
 import requests
@@ -78,6 +78,8 @@ from app.services import material_upload as material_upload_service
 from app.services import sonilo as sonilo_service
 from app.services import state as sm
 from app.services import task as tm
+from app.services.social_account import social_account_service
+from app.services.upload_post import upload_post_service
 from app.utils import utils
 from app.utils.logging_utils import configure_terminal_logger
 
@@ -3249,6 +3251,7 @@ def _render_settings_content(in_dialog=False):
             )
             if upload_post_auto_upload != is_auto:
                 _set_runtime_config("app", "upload_post_auto_upload", upload_post_auto_upload)
+                st.session_state["social_tab_auto_upload_checkbox"] = upload_post_auto_upload
 
             upload_post_api_key = st.text_input(
                 tr("Upload-Post API Key"),
@@ -4741,7 +4744,7 @@ def _render_loomloom_run_progress():
     if not run_id or st.session_state.get("loomloom_poll_paused", False):
         return
     retry_after = float(st.session_state.get("loomloom_poll_retry_after", 0.0) or 0.0)
-    retry_wait_seconds = max(0, int(math.ceil(retry_after - time.monotonic())))
+    retry_wait_seconds = max(0, math.ceil(retry_after - time.monotonic()))
     if retry_wait_seconds > 0:
         st.info(
             tr("LoomLoom Poll Retry Pending").format(
@@ -5012,6 +5015,8 @@ def _render_news_article_scraper(params):
                     try:
                         scraped = article_scraper.scrape_article(article_url_input)
                         st.session_state["scraped_article_data"] = scraped
+                        st.session_state["article_url"] = scraped.url
+                        params.article_url = scraped.url
                         src_name = article_scraper.get_news_source_name(scraped.url)
                         if src_name:
                             src_badge = f"Nguồn: {src_name}"
@@ -5776,7 +5781,7 @@ def _render_frame_and_source_settings(params):
                     _i18n("Kích cỡ hiển thị tiêu đề (%)", "Headline Scale (%)"),
                     min_value=50,
                     max_value=200,
-                    value=int(round(float(st.session_state.get("headline_scale", 1.0)) * 100)),
+                    value=round(float(st.session_state.get("headline_scale", 1.0)) * 100),
                     step=5,
                     key="settings_headline_scale_slider",
                     help=_i18n("Thu nhỏ cỡ chữ để tiêu đề dài hiển thị trọn vẹn trên màn hình hoặc phóng to để nổi bật", "Scale down font size so long headlines fit completely on screen, or scale up to stand out"),
@@ -5875,7 +5880,7 @@ def _render_frame_and_source_settings(params):
                     _i18n("Kích cỡ hiển thị nhãn nguồn (%)", "Source Badge Scale (%)"),
                     min_value=50,
                     max_value=200,
-                    value=int(round(float(st.session_state.get("source_badge_scale", 1.0)) * 100)),
+                    value=round(float(st.session_state.get("source_badge_scale", 1.0)) * 100),
                     step=5,
                     key="settings_source_scale_slider",
                     help=_i18n("Phóng to/thu nhỏ kích cỡ hiển thị của nhãn nguồn", "Scale source badge size on screen"),
@@ -6676,7 +6681,7 @@ def _estimate_voiceover_duration_range(
     Common punctuation pauses are also included. Different providers, timbres and tones will cause actual deviations, so the interface
     An interval must be presented rather than a pseudo-exact single result.
     """
-    normalized_text = re.sub(r"\s+", " ", str(text or "")).strip()
+    normalized_text = re.sub(r"\s+", " ", (text or "")).strip()
     if not normalized_text:
         return None
 
@@ -6751,7 +6756,7 @@ def _credential_signature(value: str) -> str:
     The summary is not written to the configuration, log, or task files. After the user modifies the API Key, the summary will change, thus
     Forces a recall of the current dubbing service to avoid old audition caches making invalid new credentials appear available.
     """
-    normalized_value = str(value or "")
+    normalized_value = value or ""
     if not normalized_value:
         return ""
     return hashlib.sha256(normalized_value.encode("utf-8")).hexdigest()
@@ -6763,7 +6768,7 @@ def _get_voxcpm_reference_audio() -> bytes | None:
     if not isinstance(payload, dict):
         return None
     audio_bytes = payload.get("audio_bytes")
-    return bytes(audio_bytes) if isinstance(audio_bytes, bytes) else None
+    return audio_bytes if isinstance(audio_bytes, bytes) else None
 
 
 def _get_voxcpm_reference_audio_digest() -> str:
@@ -6771,7 +6776,7 @@ def _get_voxcpm_reference_audio_digest() -> str:
     if not isinstance(payload, dict):
         return ""
     digest = payload.get("audio_digest")
-    return str(digest) if isinstance(digest, str) else ""
+    return digest if isinstance(digest, str) else ""
 
 
 def _get_voxcpm_prompt_audio() -> bytes | None:
@@ -6779,7 +6784,7 @@ def _get_voxcpm_prompt_audio() -> bytes | None:
     if not isinstance(payload, dict):
         return None
     audio_bytes = payload.get("audio_bytes")
-    return bytes(audio_bytes) if isinstance(audio_bytes, bytes) else None
+    return audio_bytes if isinstance(audio_bytes, bytes) else None
 
 
 def _get_voxcpm_prompt_audio_digest() -> str:
@@ -6787,7 +6792,7 @@ def _get_voxcpm_prompt_audio_digest() -> str:
     if not isinstance(payload, dict):
         return ""
     digest = payload.get("audio_digest")
-    return str(digest) if isinstance(digest, str) else ""
+    return digest if isinstance(digest, str) else ""
 
 
 def _get_voxcpm_prompt_text() -> str:
@@ -6814,7 +6819,7 @@ def _clear_voxcpm_prompt_transcript() -> None:
 def _sync_voxcpm_prompt_example_mode(use_separate_prompt_audio: bool) -> None:
     """Invalidate the transcript whenever its effective example changes mode."""
     previous_mode = st.session_state.get(VOXCPM_PROMPT_EXAMPLE_MODE_SESSION_KEY)
-    current_mode = bool(use_separate_prompt_audio)
+    current_mode = use_separate_prompt_audio
     if previous_mode is not None and bool(previous_mode) != current_mode:
         _clear_voxcpm_prompt_transcript()
     st.session_state[VOXCPM_PROMPT_EXAMPLE_MODE_SESSION_KEY] = current_mode
@@ -6924,7 +6929,7 @@ def _sync_voxcpm_reference_audio(uploaded_file) -> bytes | None:
     ):
         _clear_voxcpm_prompt_transcript()
     st.session_state.pop(VOXCPM_REFERENCE_AUDIO_ERROR_SESSION_KEY, None)
-    return bytes(wav_audio)
+    return wav_audio
 
 
 def _sync_voxcpm_prompt_audio(uploaded_file) -> bytes | None:
@@ -6975,7 +6980,7 @@ def _sync_voxcpm_prompt_audio(uploaded_file) -> bytes | None:
     if previous_digest != hashlib.sha256(wav_audio).hexdigest():
         _clear_voxcpm_prompt_transcript()
     st.session_state.pop(VOXCPM_PROMPT_AUDIO_ERROR_SESSION_KEY, None)
-    return bytes(wav_audio)
+    return wav_audio
 
 
 def _get_voice_preview_provider_signature(tts_server: str) -> dict:
@@ -7071,7 +7076,7 @@ def _synthesize_voice_preview(
         with config.try_runtime_config_lock() as lock_acquired:
             if not lock_acquired:
                 return {"busy": True}
-            tts_kwargs = {
+            tts_kwargs: dict[str, Any] = {
                 "text": content,
                 "voice_name": voice_name,
                 "voice_rate": voice_rate,
@@ -8429,7 +8434,7 @@ def _render_audio_settings(panel, params):
                     _saved_chatterbox_voices = ", ".join(_saved_chatterbox_voices)
                 chatterbox_voices = st.text_input(
                     tr("Chatterbox Voices"),
-                    value=str(_saved_chatterbox_voices or ""),
+                    value=(_saved_chatterbox_voices or ""),
                     key="chatterbox_voices_input",
                     placeholder=tr("Chatterbox Voices Placeholder"),
                 )
@@ -8482,7 +8487,7 @@ def _render_audio_settings(panel, params):
                     _saved_kokoro_voices = ", ".join(_saved_kokoro_voices)
                 kokoro_voices = st.text_input(
                     tr("Kokoro Voices"),
-                    value=str(_saved_kokoro_voices or ""),
+                    value=(_saved_kokoro_voices or ""),
                     key="kokoro_voices_input",
                     placeholder=tr("Kokoro Voices Placeholder"),
                 )
@@ -9572,25 +9577,25 @@ def _render_live_video_preview(params: VideoParams):
                 headline_y=float(st.session_state.get("headline_y", 8.0)),
                 headline_scale=float(st.session_state.get("headline_scale", 1.0)),
                 headline_color=str(st.session_state.get("headline_color", "#FFFFFF")),
-                headline_duration=int(headline_dur),
+                headline_duration=headline_dur,
                 source_enabled=badge_is_enabled,
                 source_text=badge_text,
                 source_x=float(st.session_state.get("source_badge_x", 75.0)),
                 source_y=float(st.session_state.get("source_badge_y", 12.0)),
                 source_scale=float(st.session_state.get("source_badge_scale", 1.0)),
                 source_color=str(st.session_state.get("source_badge_color", "#F8FAFC")),
-                source_duration=int(badge_dur),
+                source_duration=badge_dur,
                 logo_enabled=bool(logo_is_enabled and logo_uri),
                 logo_src=logo_uri,
                 logo_x=float(st.session_state.get("logo_x", 8.0)),
                 logo_y=float(st.session_state.get("logo_y", 6.0)),
                 logo_size=int(logo_sz * 0.45),
-                logo_duration=int(logo_dur),
+                logo_duration=logo_dur,
                 frame_enabled=bool(frame_is_enabled and tmpl_uri),
                 frame_src=tmpl_uri,
                 frame_x=float(st.session_state.get("frame_x", 0.0)),
                 frame_y=float(st.session_state.get("frame_y", 0.0)),
-                frame_duration=int(frame_dur),
+                frame_duration=frame_dur,
                 key="interactive_preview_draggable_canvas",
                 default=None,
             )
@@ -9612,8 +9617,8 @@ def _render_live_video_preview(params: VideoParams):
                 if "headline_scale" in canvas_res:
                     hsc = float(canvas_res["headline_scale"])
                     st.session_state["headline_scale"] = hsc
-                    st.session_state["pv_slider_hl_scale"] = int(round(hsc * 100))
-                    st.session_state["settings_headline_scale_slider"] = int(round(hsc * 100))
+                    st.session_state["pv_slider_hl_scale"] = round(hsc * 100)
+                    st.session_state["settings_headline_scale_slider"] = round(hsc * 100)
                     params.headline_scale = hsc
                 if "headline_text" in canvas_res:
                     htxt = str(canvas_res["headline_text"]).strip()
@@ -9636,7 +9641,7 @@ def _render_live_video_preview(params: VideoParams):
                 if "source_scale" in canvas_res:
                     ssc = float(canvas_res["source_scale"])
                     st.session_state["source_badge_scale"] = ssc
-                    st.session_state["pv_slider_sb_scale"] = int(round(ssc * 100))
+                    st.session_state["pv_slider_sb_scale"] = round(ssc * 100)
                     params.source_badge_scale = ssc
                 if "source_text" in canvas_res:
                     stxt = str(canvas_res["source_text"]).strip()
@@ -9713,7 +9718,7 @@ def _render_live_video_preview(params: VideoParams):
                         st.session_state["headline_duration"] = sel_hl_d
                         params.headline_duration = sel_hl_d
 
-                    st.caption(f"📍 **{_i18n('Tọa độ & Kích cỡ (kéo thả hoặc tinh chỉnh):', 'Coordinates & Size (drag or adjust):')}** `X: {st.session_state.get('headline_x', 50.0):.1f}%`, `Y: {st.session_state.get('headline_y', 8.0):.1f}%`, `Cỡ: {int(round(float(st.session_state.get('headline_scale', 1.0)) * 100))}%`")
+                    st.caption(f"📍 **{_i18n('Tọa độ & Kích cỡ (kéo thả hoặc tinh chỉnh):', 'Coordinates & Size (drag or adjust):')}** `X: {st.session_state.get('headline_x', 50.0):.1f}%`, `Y: {st.session_state.get('headline_y', 8.0):.1f}%`, `Cỡ: {round(float(st.session_state.get('headline_scale', 1.0)) * 100)}%`")
                     c_hx, c_hy, c_hrst = st.columns([1.2, 1.2, 0.8])
                     with c_hx:
                         pv_hl_x = st.slider("X (%)", 0.0, 100.0, float(st.session_state.get("headline_x", 50.0)), step=0.5, key="pv_slider_hl_x")
@@ -9741,7 +9746,7 @@ def _render_live_video_preview(params: VideoParams):
                         pv_hl_scale = st.slider(
                             _i18n("Kích cỡ hiển thị (%)", "Headline Scale (%)"),
                             50, 200,
-                            int(round(float(st.session_state.get("headline_scale", 1.0)) * 100)),
+                            round(float(st.session_state.get("headline_scale", 1.0)) * 100),
                             step=5,
                             key="pv_slider_hl_scale",
                             help=_i18n("Kéo góc ⤡ trên màn hình video hoặc chỉnh slider để phóng to/thu nhỏ tiêu đề, giúp tiêu đề dài hiển thị trọn vẹn", "Resize headline on video screen or slider so long headlines fit completely"),
@@ -9801,7 +9806,7 @@ def _render_live_video_preview(params: VideoParams):
                         st.session_state["source_badge_duration"] = sel_sb_d
                         params.source_badge_duration = sel_sb_d
 
-                    st.caption(f"📍 **{_i18n('Tọa độ & Kích cỡ (kéo thả hoặc tinh chỉnh):', 'Coordinates & Size (drag or adjust):')}** `X: {st.session_state.get('source_badge_x', 75.0):.1f}%`, `Y: {st.session_state.get('source_badge_y', 12.0):.1f}%`, `Cỡ: {int(round(float(st.session_state.get('source_badge_scale', 1.0)) * 100))}%`")
+                    st.caption(f"📍 **{_i18n('Tọa độ & Kích cỡ (kéo thả hoặc tinh chỉnh):', 'Coordinates & Size (drag or adjust):')}** `X: {st.session_state.get('source_badge_x', 75.0):.1f}%`, `Y: {st.session_state.get('source_badge_y', 12.0):.1f}%`, `Cỡ: {round(float(st.session_state.get('source_badge_scale', 1.0)) * 100)}%`")
                     c_sx, c_sy, c_srst = st.columns([1.2, 1.2, 0.8])
                     with c_sx:
                         pv_sb_x = st.slider("X (%)", 0.0, 100.0, float(st.session_state.get("source_badge_x", 75.0)), step=0.5, key="pv_slider_sb_x")
@@ -9829,7 +9834,7 @@ def _render_live_video_preview(params: VideoParams):
                         pv_sb_scale = st.slider(
                             _i18n("Kích cỡ hiển thị (%)", "Source Badge Scale (%)"),
                             50, 200,
-                            int(round(float(st.session_state.get("source_badge_scale", 1.0)) * 100)),
+                            round(float(st.session_state.get("source_badge_scale", 1.0)) * 100),
                             step=5,
                             key="pv_slider_sb_scale",
                             help=_i18n("Kéo góc ⤡ trên màn hình video hoặc chỉnh slider để phóng to/thu nhỏ nhãn nguồn", "Resize source badge on video screen or slider"),
@@ -10038,13 +10043,13 @@ def _render_live_video_preview(params: VideoParams):
 
             if headline_is_enabled and headline_title:
                 hl_dur_str = f"{headline_dur}s" if headline_dur > 0 else _i18n("Vĩnh viễn", "Permanent")
-                hl_sz_str = f"{int(round(float(st.session_state.get('headline_scale', 1.0)) * 100))}%"
+                hl_sz_str = f"{round(float(st.session_state.get('headline_scale', 1.0)) * 100)}%"
                 hl_col_str = str(st.session_state.get('headline_color', '#FFFFFF'))
                 st.markdown(f"- **{_i18n('Tiêu đề', 'Headline')}**: `{headline_title}` (X: {st.session_state.get('headline_x', 50.0):.1f}%, Y: {st.session_state.get('headline_y', 8.0):.1f}%, Cỡ: {hl_sz_str}, Màu: `{hl_col_str}`, {hl_dur_str})")
 
             if badge_is_enabled and badge_text:
                 sb_dur_str = f"{badge_dur}s" if badge_dur > 0 else _i18n("Vĩnh viễn", "Permanent")
-                sb_sz_str = f"{int(round(float(st.session_state.get('source_badge_scale', 1.0)) * 100))}%"
+                sb_sz_str = f"{round(float(st.session_state.get('source_badge_scale', 1.0)) * 100)}%"
                 sb_col_str = str(st.session_state.get('source_badge_color', '#F8FAFC'))
                 st.markdown(
                     f"- **{_t('News Source Badge')}**: `{badge_text}` (X: {st.session_state.get('source_badge_x', 75.0):.1f}%, Y: {st.session_state.get('source_badge_y', 12.0):.1f}%, Cỡ: {sb_sz_str}, Màu: `{sb_col_str}`, {sb_dur_str})"
@@ -10268,7 +10273,7 @@ def _render_generated_videos_tab():
             if os.path.isfile(full_path):
                 stat = os.stat(full_path)
                 total_bytes += stat.st_size
-                time_formatted = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).astimezone().strftime("%d/%m/%Y %H:%M:%S")
+                time_formatted = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).astimezone().strftime("%d/%m/%Y %H:%M:%S")  # noqa: UP017
                 files.append({
                     "name": fname,
                     "path": full_path,
@@ -10432,19 +10437,23 @@ def _render_generated_videos_tab():
             try:
                 with open(v["path"], "rb") as vf:
                     video_bytes = vf.read()
-            except Exception as read_err:
+            except OSError as read_err:
                 logger.warning(f"Cannot read video {v['path']}: {read_err}")
 
-            if video_bytes:
+            is_playing = st.session_state.get(f"preview_gen_video_{idx}", False)
+            if is_playing and video_bytes:
                 st.video(video_bytes)
-            else:
-                st.caption(f"⚠️ {_i18n('Không thể nạp tệp video', 'Cannot load video file')}")
 
-            c_dl, c_del = st.columns([1, 1], gap="small")
+            c_play, c_dl, c_pub, c_del = st.columns([0.9, 1.0, 1.1, 0.8], gap="small")
+            with c_play:
+                play_label = "⏸️ " + _i18n("Đóng", "Close") if is_playing else "▶️ " + _i18n("Xem", "Play")
+                if st.button(play_label, key=f"btn_play_{idx}_{abs(hash(v['name']))}", use_container_width=True):
+                    st.session_state[f"preview_gen_video_{idx}"] = not is_playing
+                    st.rerun(scope="app")
             with c_dl:
                 if video_bytes:
                     st.download_button(
-                        "⬇️ " + _i18n("Tải về", "Download"),
+                        "⬇️ " + _i18n("Tải", "Download"),
                         data=video_bytes,
                         file_name=v["name"],
                         mime="video/mp4",
@@ -10453,10 +10462,25 @@ def _render_generated_videos_tab():
                     )
                 else:
                     st.button(
-                        "⬇️ " + _i18n("Tải về", "Download"),
+                        "⬇️ " + _i18n("Tải", "Download"),
                         disabled=True,
                         key=f"dl_video_dis_{idx}_{abs(hash(v['name']))}",
                         use_container_width=True,
+                    )
+            with c_pub:
+                if st.button(
+                    "📤 " + _i18n("Đăng MXH", "Publish"),
+                    key=f"btn_pub_req_{idx}_{abs(hash(v['name']))}",
+                    use_container_width=True,
+                    help=_i18n("Chọn video này để đăng lên YouTube hoặc TikTok", "Select this video to publish to YouTube or TikTok"),
+                ):
+                    st.session_state["social_publish_selected_video"] = v["path"]
+                    st.toast(
+                        _i18n(
+                            f"Đã chọn '{v['name']}'! Chuyển sang tab 'Đăng video MXH' để xem trước và đăng.",
+                            f"Selected '{v['name']}'! Switch to 'Publish Video' tab to preview and post.",
+                        ),
+                        icon="📤",
                     )
             with c_del:
                 if st.button(
@@ -10468,14 +10492,898 @@ def _render_generated_videos_tab():
                     st.rerun(scope="app")
 
 
+def _render_social_accounts_tab():
+    """
+    Render Tab 1 on UI: Display and Link YouTube and TikTok accounts.
+    Allows configuring Upload-Post credentials, OAuth account authorization,
+    viewing connection status, and managing auto-upload preferences.
+    """
+    accounts = social_account_service.list_accounts()
+    yt_accounts = [a for a in accounts if a.get("platform") == "youtube"]
+    tt_accounts = [a for a in accounts if a.get("platform") == "tiktok"]
+
+    yt_connected_count = sum(1 for a in yt_accounts if a.get("status") == "connected")
+    tt_connected_count = sum(1 for a in tt_accounts if a.get("status") == "connected")
+    auto_upload_enabled = bool(config.app.get("upload_post_auto_upload", False))
+
+    st.markdown(
+        f"""
+        <div style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.75) 0%, rgba(15, 23, 42, 0.85) 100%);
+                    border: 1px solid rgba(255, 255, 255, 0.08);
+                    border-radius: 14px;
+                    padding: 18px 22px;
+                    margin-bottom: 22px;
+                    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);">
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+                <div>
+                    <h3 style="margin: 0; font-size: 1.35rem; color: #f8fafc; display: flex; align-items: center; gap: 10px;">
+                        <span>🔗</span> {_i18n('Quản lý & Liên kết tài khoản YouTube & TikTok', 'Manage & Connect YouTube & TikTok Accounts')}
+                    </h3>
+                    <p style="margin: 5px 0 0 0; font-size: 0.88rem; color: #94a3b8;">
+                        {_i18n('Hiển thị trạng thái kết nối và liên kết tài khoản để tự động đẩy video lên YouTube Shorts và TikTok ngay sau khi render xong.',
+                               'View connection status and link accounts to automatically cross-post videos to YouTube Shorts and TikTok upon render completion.')}
+                    </p>
+                </div>
+                <div style="display: flex; gap: 14px; align-items: center;">
+                    <div style="text-align: center; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 10px; padding: 6px 14px;">
+                        <span style="font-size: 0.72rem; color: #fca5a5; font-weight: 600; text-transform: uppercase;">YouTube</span>
+                        <div style="font-size: 1.15rem; font-weight: 700; color: #ef4444;">
+                            {yt_connected_count}/{len(yt_accounts)}
+                        </div>
+                    </div>
+                    <div style="text-align: center; background: rgba(6, 182, 212, 0.12); border: 1px solid rgba(6, 182, 212, 0.25); border-radius: 10px; padding: 6px 14px;">
+                        <span style="font-size: 0.72rem; color: #67e8f9; font-weight: 600; text-transform: uppercase;">TikTok</span>
+                        <div style="font-size: 1.15rem; font-weight: 700; color: #06b6d4;">
+                            {tt_connected_count}/{len(tt_accounts)}
+                        </div>
+                    </div>
+                    <div style="text-align: center; background: rgba(34, 197, 94, 0.12); border: 1px solid rgba(34, 197, 94, 0.25); border-radius: 10px; padding: 6px 14px;">
+                        <span style="font-size: 0.72rem; color: #86efac; font-weight: 600; text-transform: uppercase;">{_i18n('Tự động đẩy', 'Auto-Post')}</span>
+                        <div style="font-size: 1.15rem; font-weight: 700; color: {'#22c55e' if auto_upload_enabled else '#94a3b8'};">
+                            {_i18n('BẬT', 'ON') if auto_upload_enabled else _i18n('TẮT', 'OFF')}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # 1. Configuration & Integration Expander
+    with st.expander("🔑 " + _i18n("Cấu hình Dịch vụ Kết nối Upload-Post & Tự động Đăng", "Upload-Post Service & Auto-Publish Settings"), expanded=not upload_post_service.is_configured()):
+        st.markdown(
+            _i18n(
+                "Hệ thống sử dụng cổng kết nối chuẩn quốc tế **Upload-Post API** để liên kết tài khoản YouTube và TikTok chính chủ thông qua OAuth 2.0 bảo mật (không lo vi phạm chính sách, không cần tạo Google Cloud Project phức tạp).",
+                "The system integrates with **Upload-Post API** to securely connect official YouTube and TikTok accounts via OAuth 2.0 without complex developer setup."
+            )
+        )
+        col_key, col_user = st.columns([2, 1])
+        with col_key:
+            current_api_key = config.app.get("upload_post_api_key", "")
+            raw_new_api_key = st.text_input(
+                "Upload-Post API Key",
+                value=current_api_key,
+                type="password",
+                placeholder="up_live_...",
+                help=_i18n("Lấy API Key miễn phí tại: https://app.upload-post.com/api-keys", "Get your free API Key at https://app.upload-post.com/api-keys"),
+                key="social_tab_api_key_input",
+            )
+            new_api_key = (raw_new_api_key or "").strip()
+            if new_api_key != current_api_key:
+                _set_runtime_config("app", "upload_post_api_key", new_api_key)
+                _set_runtime_config("app", "upload_post_enabled", bool(new_api_key))
+                st.toast(_i18n("Đã lưu API Key!", "API Key saved!"), icon="💾")
+
+        with col_user:
+            current_user = config.app.get("upload_post_username", "")
+            raw_new_user = st.text_input(
+                _i18n("Tên Profile Upload-Post", "Upload-Post Profile Name"),
+                value=current_user,
+                placeholder="default",
+                help=_i18n("Tên profile chứa tài khoản mạng xã hội trên Upload-Post (mặc định: default)", "Profile username on Upload-Post containing your social accounts (default: default)"),
+                key="social_tab_username_input",
+            )
+            new_user = (raw_new_user or "").strip()
+            if new_user != current_user:
+                _set_runtime_config("app", "upload_post_username", new_user)
+                st.toast(_i18n("Đã lưu Profile!", "Profile saved!"), icon="💾")
+
+        col_btn1, col_btn2, col_btn3 = st.columns([1.2, 1.2, 1.4])
+        with col_btn1:
+            if st.button("🔄 " + _i18n("Kiểm tra & Đồng bộ", "Check & Sync"), use_container_width=True, key="btn_sync_upload_post_accounts"):
+                with st.spinner(_i18n("Đang kiểm tra và đồng bộ tài khoản...", "Verifying and syncing accounts...")):
+                    v_res = social_account_service.verify_api_key(new_api_key or current_api_key)
+                    if not v_res.get("success"):
+                        st.error(f"❌ {v_res.get('error')}")
+                    else:
+                        st.success(f"✅ {v_res.get('message')} | Gói: {v_res.get('plan', 'Free')} ({v_res.get('email', '')})")
+                        sync_res = social_account_service.sync_from_upload_post()
+                        if sync_res.get("success"):
+                            st.toast(_i18n(f"Đã đồng bộ {sync_res.get('synced_count', 0)} tài khoản!", f"Synced {sync_res.get('synced_count', 0)} accounts!"), icon="✅")
+                            time.sleep(0.5)
+                            st.rerun(scope="app")
+                        else:
+                            st.info(_i18n("Không tìm thấy profile mới cần đồng bộ, dữ liệu hiện tại đã cập nhật.", "No new profiles found to sync, current data is up to date."))
+
+        with col_btn2:
+            st.link_button(
+                "🔑 " + _i18n("Lấy API Key", "Get API Key"),
+                url=UPLOAD_POST_API_KEYS_URL,
+                use_container_width=True,
+            )
+
+        with col_btn3:
+            st.link_button(
+                "🌐 " + _i18n("Quản lý tài khoản trên Web", "Manage Accounts Web"),
+                url=UPLOAD_POST_MANAGE_USERS_URL,
+                use_container_width=True,
+            )
+
+        st.markdown("---")
+        st.markdown(f"**⚡ {_i18n('Cài đặt Tự động Đẩy Video sau khi Render', 'Auto-Publish Settings after Render')}**")
+        col_auto_toggle, col_auto_plats = st.columns([1.2, 2])
+        with col_auto_toggle:
+            is_auto_curr = config.app.get("upload_post_auto_upload", False)
+            if "social_tab_auto_upload_checkbox" in st.session_state and st.session_state["social_tab_auto_upload_checkbox"] != is_auto_curr:
+                st.session_state["social_tab_auto_upload_checkbox"] = is_auto_curr
+            auto_upload_toggle = st.checkbox(
+                "🚀 " + _i18n("Tự động đẩy video lên MXH khi tạo xong", "Auto-publish video when creation finishes"),
+                value=is_auto_curr,
+                key="social_tab_auto_upload_checkbox",
+                help=_i18n("Khi kích hoạt, video sau khi render xong sẽ tự động được gửi lên các kênh đã chọn mà không cần bấm thủ công.",
+                           "When enabled, completed videos will automatically be cross-posted to selected channels."),
+            )
+            if auto_upload_toggle != is_auto_curr:
+                _set_runtime_config("app", "upload_post_auto_upload", auto_upload_toggle)
+                _set_runtime_config("app", "upload_post_enabled", True)
+                st.session_state["upload_post_auto_upload_checkbox"] = auto_upload_toggle
+                st.toast(_i18n("Đã cập nhật chế độ Tự động đẩy!", "Auto-publish setting updated!"), icon="🚀")
+
+        with col_auto_plats:
+            current_platforms = config.app.get("upload_post_platforms", ["tiktok", "youtube"])
+            available_platforms = ["youtube", "tiktok", "instagram"]
+            selected_plats = st.multiselect(
+                _i18n("Nền tảng tự động đẩy", "Platforms to Auto-Publish"),
+                options=available_platforms,
+                default=[p for p in current_platforms if p in available_platforms],
+                key="social_tab_auto_platforms_multiselect",
+                format_func=lambda x: "🔴 YouTube Shorts" if x == "youtube" else ("🎵 TikTok" if x == "tiktok" else "📸 Instagram"),
+            )
+            if selected_plats != current_platforms:
+                _set_runtime_config("app", "upload_post_platforms", selected_plats)
+
+    # 2. Main Two-Column View: YouTube & TikTok
+    c_yt, c_tt = st.columns(2, gap="medium")
+
+    # ---------------- YOUTUBE COLUMN ----------------
+    with c_yt:
+        st.markdown(
+            f"""
+            <div class="social-card social-card-yt">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 1.6rem;">🔴</span>
+                        <h4 style="margin: 0; font-size: 1.15rem; color: #f8fafc;">YouTube Shorts</h4>
+                    </div>
+                    <span class="{'social-badge-connected' if yt_connected_count > 0 else 'social-badge-disconnected'}">
+                        <span class="social-badge-dot {'social-badge-dot-green' if yt_connected_count > 0 else 'social-badge-dot-gray'}"></span>
+                        {_i18n('Đã kết nối', 'Connected') if yt_connected_count > 0 else _i18n('Chưa kết nối', 'Disconnected')}
+                    </span>
+                </div>
+                <p style="font-size: 0.85rem; color: #94a3b8; margin: 0 0 14px 0;">
+                    {_i18n('Kênh YouTube tự động nhận các video ngắn (Shorts) với đầy đủ tiêu đề, mô tả và hashtag.',
+                           'YouTube channels automatically receive Shorts with full titles, descriptions, and hashtags.')}
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        # YouTube OAuth Connect Button
+        if st.button("🔗 " + _i18n("Liên kết tài khoản YouTube ngay", "Connect YouTube Account Now"), key="btn_connect_yt_oauth", type="primary", use_container_width=True):
+            with st.spinner(_i18n("Đang tạo liên kết ủy quyền YouTube...", "Generating YouTube authorization link...")):
+                oauth_res = social_account_service.get_oauth_start_url("youtube")
+                if oauth_res.get("success") and oauth_res.get("authorize_url"):
+                    st.session_state["yt_auth_url"] = oauth_res["authorize_url"]
+                    st.session_state["yt_auth_expires"] = oauth_res.get("expires_in", 900)
+                else:
+                    st.error(f"❌ {oauth_res.get('error') or _i18n('Không thể tạo liên kết ủy quyền', 'Failed to generate auth link')}")
+
+        if st.session_state.get("yt_auth_url"):
+            auth_url = st.session_state["yt_auth_url"]
+            st.markdown(
+                f"""
+                <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 12px; padding: 14px 18px; margin: 12px 0;">
+                    <p style="margin: 0 0 10px 0; color: #f8fafc; font-size: 0.92rem; font-weight: 600;">
+                        👉 {_i18n('Nhấp để mở trang ủy quyền YouTube (Google OAuth):', 'Click to open YouTube authorization page (Google OAuth):')}
+                    </p>
+                    <a href="{auth_url}" target="_blank" style="display: block; text-align: center; background: #ef4444; color: white; padding: 10px 16px; border-radius: 8px; text-decoration: none; font-weight: 600; margin-bottom: 8px;">
+                        🔴 {_i18n('Mở trang cấp quyền YouTube ↗', 'Open YouTube Authorization ↗')}
+                    </a>
+                    <span style="font-size: 0.78rem; color: #94a3b8;">
+                        ⏱ {_i18n('Liên kết có hiệu lực trong 15 phút. Sau khi cấp quyền thành công, nhấn "Kiểm tra & Đồng bộ" ở trên.', 'Valid for 15 minutes. Once authorized, click "Check & Sync" above.')}
+                    </span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        # YouTube Accounts List
+        if not yt_accounts:
+            st.info(_i18n("Chưa có tài khoản YouTube nào. Nhấn nút liên kết phía trên để kết nối.", "No YouTube accounts yet. Click the button above to connect."))
+        else:
+            for acc in yt_accounts:
+                with st.container(border=True):
+                    c_info, c_stat = st.columns([3, 1.2])
+                    with c_info:
+                        st.markdown(f"**🔴 {acc.get('account_name', 'YouTube Channel')}**")
+                        st.caption(f"Handle: `{acc.get('handle', '@channel')}` | Profile: `{acc.get('profile_username', 'default')}`")
+                    with c_stat:
+                        is_conn = acc.get("status") == "connected"
+                        badge_text = _i18n("Đã kết nối", "Connected") if is_conn else _i18n("Chưa kết nối", "Disconnected")
+                        badge_color = "#22c55e" if is_conn else "#94a3b8"
+                        st.markdown(f"<span style='color: {badge_color}; font-weight: 600; font-size: 0.85rem;'>● {badge_text}</span>", unsafe_allow_html=True)
+
+                    c_act1, c_act2, c_act3 = st.columns([1.5, 1.2, 0.8], vertical_alignment="center")
+                    with c_act1:
+                        auto_toggle = st.checkbox(
+                            _i18n("Tự động đẩy video", "Auto-post"),
+                            value=bool(acc.get("auto_upload", False)),
+                            key=f"chk_auto_yt_{acc['id']}",
+                        )
+                        if auto_toggle != acc.get("auto_upload", False):
+                            social_account_service.toggle_auto_upload(acc["id"], auto_toggle)
+                            st.toast(_i18n("Đã cập nhật tài khoản!", "Account updated!"), icon="💾")
+                    with c_act2:
+                        status_choice = st.selectbox(
+                            _i18n("Quyền riêng tư", "Privacy"),
+                            options=["public", "unlisted", "private"],
+                            index=["public", "unlisted", "private"].index(acc.get("default_privacy", "public")),
+                            key=f"sel_priv_yt_{acc['id']}",
+                            label_visibility="collapsed",
+                        )
+                        if status_choice != acc.get("default_privacy", "public"):
+                            acc["default_privacy"] = status_choice
+                            social_account_service.save_account(acc)
+                    with c_act3:
+                        if st.button("🗑️", key=f"btn_del_yt_{acc['id']}", help=_i18n("Gỡ tài khoản này", "Remove this account")):
+                            social_account_service.delete_account(acc["id"])
+                            st.rerun(scope="app")
+
+    # ---------------- TIKTOK COLUMN ----------------
+    with c_tt:
+        st.markdown(
+            f"""
+            <div class="social-card social-card-tt">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 1.6rem;">🎵</span>
+                        <h4 style="margin: 0; font-size: 1.15rem; color: #f8fafc;">TikTok Profile</h4>
+                    </div>
+                    <span class="{'social-badge-connected' if tt_connected_count > 0 else 'social-badge-disconnected'}">
+                        <span class="social-badge-dot {'social-badge-dot-green' if tt_connected_count > 0 else 'social-badge-dot-gray'}"></span>
+                        {_i18n('Đã kết nối', 'Connected') if tt_connected_count > 0 else _i18n('Chưa kết nối', 'Disconnected')}
+                    </span>
+                </div>
+                <p style="font-size: 0.85rem; color: #94a3b8; margin: 0 0 14px 0;">
+                    {_i18n('Hồ sơ TikTok sẵn sàng nhận video dọc chuẩn 9:16 kèm caption, hashtag và liên kết bài báo nguồn.',
+                           'TikTok profiles ready to receive 9:16 videos with captions, hashtags, and news source links.')}
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        # TikTok OAuth Connect Button
+        if st.button("🔗 " + _i18n("Liên kết tài khoản TikTok ngay", "Connect TikTok Account Now"), key="btn_connect_tt_oauth", type="primary", use_container_width=True):
+            with st.spinner(_i18n("Đang tạo liên kết ủy quyền TikTok...", "Generating TikTok authorization link...")):
+                oauth_res = social_account_service.get_oauth_start_url("tiktok")
+                if oauth_res.get("success") and oauth_res.get("authorize_url"):
+                    st.session_state["tt_auth_url"] = oauth_res["authorize_url"]
+                    st.session_state["tt_auth_expires"] = oauth_res.get("expires_in", 900)
+                else:
+                    st.error(f"❌ {oauth_res.get('error') or _i18n('Không thể tạo liên kết ủy quyền', 'Failed to generate auth link')}")
+
+        if st.session_state.get("tt_auth_url"):
+            auth_url = st.session_state["tt_auth_url"]
+            st.markdown(
+                f"""
+                <div style="background: rgba(6, 182, 212, 0.1); border: 1px solid rgba(6, 182, 212, 0.35); border-radius: 12px; padding: 14px 18px; margin: 12px 0;">
+                    <p style="margin: 0 0 10px 0; color: #f8fafc; font-size: 0.92rem; font-weight: 600;">
+                        👉 {_i18n('Nhấp để mở trang ủy quyền TikTok OAuth:', 'Click to open TikTok authorization page:')}
+                    </p>
+                    <a href="{auth_url}" target="_blank" style="display: block; text-align: center; background: linear-gradient(135deg, #00f2fe 0%, #fe2c55 100%); color: white; padding: 10px 16px; border-radius: 8px; text-decoration: none; font-weight: 600; margin-bottom: 8px;">
+                        🎵 {_i18n('Mở trang cấp quyền TikTok ↗', 'Open TikTok Authorization ↗')}
+                    </a>
+                    <span style="font-size: 0.78rem; color: #94a3b8;">
+                        ⏱ {_i18n('Liên kết có hiệu lực trong 15 phút. Sau khi cấp quyền thành công, nhấn "Kiểm tra & Đồng bộ" ở trên.', 'Valid for 15 minutes. Once authorized, click "Check & Sync" above.')}
+                    </span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        # TikTok Accounts List
+        if not tt_accounts:
+            st.info(_i18n("Chưa có tài khoản TikTok nào. Nhấn nút liên kết phía trên để kết nối.", "No TikTok accounts yet. Click the button above to connect."))
+        else:
+            for acc in tt_accounts:
+                with st.container(border=True):
+                    c_info, c_stat = st.columns([3, 1.2])
+                    with c_info:
+                        st.markdown(f"**🎵 {acc.get('account_name', 'TikTok Account')}**")
+                        st.caption(f"Handle: `{acc.get('handle', '@tiktok')}` | Profile: `{acc.get('profile_username', 'default')}`")
+                    with c_stat:
+                        is_conn = acc.get("status") == "connected"
+                        badge_text = _i18n("Đã kết nối", "Connected") if is_conn else _i18n("Chưa kết nối", "Disconnected")
+                        badge_color = "#22c55e" if is_conn else "#94a3b8"
+                        st.markdown(f"<span style='color: {badge_color}; font-weight: 600; font-size: 0.85rem;'>● {badge_text}</span>", unsafe_allow_html=True)
+
+                    c_act1, c_act2, c_act3 = st.columns([1.5, 1.2, 0.8], vertical_alignment="center")
+                    with c_act1:
+                        auto_toggle = st.checkbox(
+                            _i18n("Tự động đẩy video", "Auto-post"),
+                            value=bool(acc.get("auto_upload", False)),
+                            key=f"chk_auto_tt_{acc['id']}",
+                        )
+                        if auto_toggle != acc.get("auto_upload", False):
+                            social_account_service.toggle_auto_upload(acc["id"], auto_toggle)
+                            st.toast(_i18n("Đã cập nhật tài khoản!", "Account updated!"), icon="💾")
+                    with c_act2:
+                        status_choice = st.selectbox(
+                            _i18n("Quyền riêng tư", "Privacy"),
+                            options=["public", "friends", "private"],
+                            index=["public", "friends", "private"].index(acc.get("default_privacy", "public")),
+                            key=f"sel_priv_tt_{acc['id']}",
+                            label_visibility="collapsed",
+                        )
+                        if status_choice != acc.get("default_privacy", "public"):
+                            acc["default_privacy"] = status_choice
+                            social_account_service.save_account(acc)
+                    with c_act3:
+                        if st.button("🗑️", key=f"btn_del_tt_{acc['id']}", help=_i18n("Gỡ tài khoản này", "Remove this account")):
+                            social_account_service.delete_account(acc["id"])
+                            st.rerun(scope="app")
+
+    # 3. Add Custom / Manual Account
+    with st.expander("➕ " + _i18n("Thêm hoặc Quản lý Tài khoản thủ công", "Add or Manage Account Manually"), expanded=False):
+        c_m_plat, c_m_name, c_m_handle, c_m_prof = st.columns(4)
+        with c_m_plat:
+            man_plat = st.selectbox(_i18n("Nền tảng", "Platform"), options=["youtube", "tiktok"], format_func=lambda x: "🔴 YouTube" if x == "youtube" else "🎵 TikTok", key="man_acc_plat")
+        with c_m_name:
+            man_name = st.text_input(_i18n("Tên gợi nhớ tài khoản", "Account Nickname"), placeholder="Kênh Tin Tức Việt Nam", key="man_acc_name").strip()
+        with c_m_handle:
+            man_handle = st.text_input(_i18n("Handle / Tên kênh", "Handle / Username"), placeholder="@kenhtintuc24h", key="man_acc_handle").strip()
+        with c_m_prof:
+            man_prof = st.text_input(_i18n("Profile Upload-Post", "Upload-Post Profile"), value=config.app.get("upload_post_username", "default") or "default", key="man_acc_prof").strip()
+
+        if st.button("💾 " + _i18n("Thêm tài khoản vào danh sách", "Add Account to List"), key="btn_save_man_account", type="secondary"):
+            if not man_name:
+                st.warning(_i18n("Vui lòng nhập tên tài khoản!", "Please enter account nickname!"))
+            else:
+                social_account_service.save_account({
+                    "platform": man_plat,
+                    "account_name": man_name,
+                    "handle": man_handle if man_handle.startswith("@") else f"@{man_handle}",
+                    "profile_username": man_prof,
+                    "status": "connected" if upload_post_service.is_configured() else "disconnected",
+                    "auto_upload": True,
+                    "default_privacy": "public",
+                    "notes": "Thêm thủ công từ WebUI",
+                })
+                st.success(_i18n("Đã thêm tài khoản thành công!", "Account added successfully!"))
+                time.sleep(0.5)
+                st.rerun(scope="app")
+
+    # 4. User Guide
+    with st.expander("📖 " + _i18n("Hướng dẫn liên kết chi tiết trong 3 bước", "Detailed 3-Step Setup Guide"), expanded=False):
+        st.markdown(
+            _i18n(
+                """
+                ### 🚀 Cách liên kết tài khoản YouTube & TikTok:
+                1. **Bước 1: Lấy API Key miễn phí**
+                   - Truy cập [app.upload-post.com](https://app.upload-post.com) để đăng ký tài khoản miễn phí (không cần thẻ tín dụng).
+                   - Vào mục **API Keys** và tạo một khóa mới, sau đó dán vào ô **Upload-Post API Key** ở trên.
+                2. **Bước 2: Cấp quyền tài khoản (OAuth 2.0)**
+                   - Bấm nút **"Liên kết tài khoản YouTube ngay"** hoặc **"Liên kết tài khoản TikTok ngay"**.
+                   - Một liên kết cấp quyền an toàn của Google/TikTok sẽ xuất hiện. Nhấp vào để đăng nhập và bấm **Cho phép (Allow)**.
+                3. **Bước 3: Hoàn tất & Tự động đẩy**
+                   - Sau khi cấp quyền trên trình duyệt, quay lại đây và nhấn **"Kiểm tra & Đồng bộ"**.
+                   - Kích hoạt tùy chọn **"Tự động đẩy video lên MXH khi tạo xong"** nếu muốn tự động hóa 100%!
+                """,
+                """
+                ### 🚀 How to connect YouTube & TikTok accounts:
+                1. **Step 1: Get a free API Key**
+                   - Visit [app.upload-post.com](https://app.upload-post.com) and create an account (free tier available).
+                   - Navigate to **API Keys**, create a key, and paste it into the **Upload-Post API Key** field above.
+                2. **Step 2: Authorize Accounts (OAuth 2.0)**
+                   - Click **"Connect YouTube Account Now"** or **"Connect TikTok Account Now"**.
+                   - An official OAuth link will be generated. Click it to log in and approve permissions.
+                3. **Step 3: Complete & Enjoy Auto-Posting**
+                   - Return here and click **"Check & Sync"**.
+                   - Turn on **"Auto-publish video when creation finishes"** for full end-to-end automation!
+                """
+            )
+        )
+
+
+def _render_social_publish_tab():
+    """
+    Render Tab 2 on UI: Select account, preview video content before publishing,
+    and customize title, hashtags, description with article link included.
+    """
+    accounts = social_account_service.list_accounts()
+    out_dir = utils.output_videos_dir()
+    os.makedirs(out_dir, exist_ok=True)
+
+    video_exts = (".mp4", ".mov", ".mkv", ".webm")
+    available_videos = []
+    if os.path.exists(out_dir):
+        for fname in os.listdir(out_dir):
+            if fname.lower().endswith(video_exts):
+                full_path = os.path.join(out_dir, fname)
+                if os.path.isfile(full_path):
+                    st_stat = os.stat(full_path)
+                    time_formatted = datetime.fromtimestamp(st_stat.st_mtime, tz=timezone.utc).astimezone().strftime("%d/%m/%Y %H:%M")  # noqa: UP017
+                    available_videos.append({
+                        "name": fname,
+                        "path": full_path,
+                        "size_mb": round(st_stat.st_size / (1024 * 1024), 2),
+                        "mtime": st_stat.st_mtime,
+                        "time_str": time_formatted,
+                    })
+
+    available_videos.sort(key=lambda x: x["mtime"], reverse=True)
+
+    st.markdown(
+        f"""
+        <div style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.75) 0%, rgba(15, 23, 42, 0.85) 100%);
+                    border: 1px solid rgba(255, 255, 255, 0.08);
+                    border-radius: 14px;
+                    padding: 18px 22px;
+                    margin-bottom: 22px;
+                    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);">
+            <div>
+                <h3 style="margin: 0; font-size: 1.35rem; color: #f8fafc; display: flex; align-items: center; gap: 10px;">
+                    <span>📤</span> {_i18n('Chọn tài khoản & Đăng video lên Mạng xã hội', 'Select Account & Publish Video to Social Media')}
+                </h3>
+                <p style="margin: 5px 0 0 0; font-size: 0.88rem; color: #94a3b8;">
+                    {_i18n('Xem trước video hoàn chỉnh trước khi đăng, chọn tài khoản đích (YouTube Shorts / TikTok) và tùy chỉnh tiêu đề, hashtag, mô tả có sẵn link bài báo nguồn.',
+                           'Preview video before publishing, choose target accounts (YouTube Shorts / TikTok), and customize title, hashtags, description with article link included.')}
+                </p>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if not accounts:
+        st.warning(
+            _i18n(
+                "⚠️ Bạn chưa liên kết tài khoản YouTube hoặc TikTok nào! Hãy chuyển sang tab 'Liên kết tài khoản' để kết nối tài khoản trước khi đăng.",
+                "⚠️ You have not connected any YouTube or TikTok accounts yet! Please switch to 'Linked Accounts' tab to connect before publishing."
+            )
+        )
+
+    # Two column layout: Left = Video Preview, Right = Content & Account Selector
+    col_preview, col_content = st.columns([1.1, 1.4], gap="large")
+
+    # ================= LEFT COLUMN: VIDEO SELECTION & PREVIEW =================
+    with col_preview:
+        st.markdown(f"**🎬 {_i18n('1. Chọn video & Xem trước nội dung', '1. Select Video & Preview Content')}**")
+
+        selected_video_path = st.session_state.get("social_publish_selected_video", "")
+
+        # Option: Choose from generated videos or upload external
+        source_mode = st.radio(
+            _i18n("Nguồn video", "Video source"),
+            options=[_i18n("Video đã tạo trong hệ thống", "Generated Library Videos"), _i18n("Tải lên tệp video ngoài", "Upload External Video")],
+            index=0,
+            horizontal=True,
+            label_visibility="collapsed",
+            key="pub_video_source_mode",
+        )
+
+        chosen_video_path = None
+        chosen_video_name = ""
+        chosen_video_size = 0.0
+
+        if source_mode == _i18n("Video đã tạo trong hệ thống", "Generated Library Videos"):
+            if not available_videos:
+                st.info(_i18n("Chưa có video nào trong thư mục đã tạo. Bạn có thể sang tab 'Tạo video' để sản xuất hoặc chọn 'Tải lên tệp video ngoài'.",
+                             "No generated videos found. Switch to 'Create Video' tab to create one or select 'Upload External Video'."))
+            else:
+                video_names = [v["name"] for v in available_videos]
+                default_idx = 0
+                if selected_video_path:
+                    for i, v in enumerate(available_videos):
+                        if v["path"] == selected_video_path or v["name"] == os.path.basename(selected_video_path):
+                            default_idx = i
+                            break
+
+                selected_name = st.selectbox(
+                    _i18n("Chọn video để đăng", "Select video to publish"),
+                    options=video_names,
+                    index=default_idx,
+                    key="sel_publish_library_video",
+                    format_func=lambda name: next((f"🎞️ {v['name']} ({v['size_mb']} MB - {v['time_str']})" for v in available_videos if v["name"] == name), name),
+                )
+                matched = next((v for v in available_videos if v["name"] == selected_name), None)
+                if matched:
+                    chosen_video_path = matched["path"]
+                    chosen_video_name = matched["name"]
+                    chosen_video_size = matched["size_mb"]
+        else:
+            uploaded_file = st.file_uploader(
+                _i18n("Tải lên tệp video (.mp4, .mov)", "Upload video file (.mp4, .mov)"),
+                type=["mp4", "mov", "mkv", "webm"],
+                key="social_pub_external_video_uploader",
+            )
+            if uploaded_file is not None:
+                temp_dir = utils.storage_dir("temp_uploads", create=True)
+                temp_path = os.path.join(temp_dir, f"ext_{uuid4().hex[:8]}_{uploaded_file.name}")
+                with open(temp_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+                chosen_video_path = temp_path
+                chosen_video_name = uploaded_file.name
+                chosen_video_size = round(uploaded_file.size / (1024 * 1024), 2)
+
+        # Live Video Preview Display
+        st.markdown("---")
+        c_pv_head, c_pv_tog = st.columns([2.5, 1.2], vertical_alignment="center")
+        with c_pv_head:
+            st.markdown(f"**👁️ {_i18n('Xem trước nội dung video trước khi đăng', 'Video Preview Before Publishing')}**")
+        with c_pv_tog:
+            show_social_preview = st.toggle(
+                _i18n("Bật xem trước", "Enable preview"),
+                value=bool(st.session_state.get("show_social_pub_preview", False)),
+                key="toggle_social_pub_preview",
+            )
+            st.session_state["show_social_pub_preview"] = show_social_preview
+
+        if chosen_video_path and os.path.exists(chosen_video_path):
+            st.caption(f"📁 `{chosen_video_name}` | Dung lượng: **{chosen_video_size} MB**")
+            if show_social_preview:
+                video_bytes = None
+                try:
+                    with open(chosen_video_path, "rb") as vf:
+                        video_bytes = vf.read()
+                except OSError as read_err:
+                    logger.warning(f"Error reading video for preview: {read_err}")
+
+                if video_bytes:
+                    st.video(video_bytes)
+                else:
+                    st.warning(_i18n("Không thể nạp video để xem trước.", "Cannot load video preview."))
+        else:
+            st.markdown(
+                f"""
+                <div style="text-align: center; padding: 40px 16px; background: rgba(30, 41, 59, 0.35); border-radius: 12px; border: 1px dashed rgba(255, 255, 255, 0.15);">
+                    <div style="font-size: 40px; margin-bottom: 8px;">🎬</div>
+                    <p style="color: #94a3b8; font-size: 0.9rem; margin: 0;">
+                        {_i18n('Hãy chọn một video phía trên để xem nội dung trước khi đăng.', 'Select a video above to preview content before posting.')}
+                    </p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    # ================= RIGHT COLUMN: ACCOUNTS & POST CONTENT =================
+    with col_content:
+        st.markdown(f"**🎯 {_i18n('2. Chọn tài khoản đăng tải', '2. Select Target Accounts')}**")
+
+        # Select Account(s)
+        available_account_choices = []
+        for a in accounts:
+            plat_icon = "🔴" if a.get("platform") == "youtube" else "🎵"
+            label = f"{plat_icon} {a.get('account_name', 'Account')} ({a.get('handle', '')})"
+            available_account_choices.append((a["id"], label, a.get("platform")))
+
+        selected_account_ids = []
+        if available_account_choices:
+            c_sel_all, c_sel_none = st.columns([1, 1])
+            with c_sel_all:
+                if st.button(_i18n("Chọn tất cả tài khoản", "Select All Accounts"), key="btn_sel_all_accs", use_container_width=True, type="tertiary"):
+                    st.session_state["sel_pub_accounts"] = [acc_id for acc_id, _, _ in available_account_choices]
+                    st.rerun(scope="app")
+            with c_sel_none:
+                if st.button(_i18n("Bỏ chọn hết", "Deselect All"), key="btn_desel_all_accs", use_container_width=True, type="tertiary"):
+                    st.session_state["sel_pub_accounts"] = []
+                    st.rerun(scope="app")
+
+            default_acc_ids = st.session_state.get(
+                "sel_pub_accounts",
+                [a["id"] for a in accounts if a.get("status") == "connected"] or [a["id"] for a in accounts]
+            )
+
+            for acc_id, label, plat in available_account_choices:
+                chk = st.checkbox(
+                    label,
+                    value=(acc_id in default_acc_ids),
+                    key=f"pub_chk_acc_{acc_id}",
+                )
+                if chk:
+                    selected_account_ids.append(acc_id)
+        else:
+            st.info(_i18n("Chưa có tài khoản liên kết. Vui lòng qua tab 'Liên kết tài khoản' để thêm.", "No linked accounts. Please switch to 'Linked Accounts' tab to add."))
+
+        # Platform Settings Details
+        target_platforms: list[str] = sorted({str(a["platform"]) for a in accounts if a.get("id") in selected_account_ids and a.get("platform")})
+        has_yt_target = "youtube" in target_platforms
+
+        with st.expander("⚙️ " + _i18n("Tùy chọn hiển thị riêng từng nền tảng", "Platform-Specific Visibility Settings"), expanded=False):
+            c_yt_set, c_tt_set = st.columns(2)
+            with c_yt_set:
+                st.markdown("**🔴 YouTube**")
+                yt_pub_privacy_display = st.selectbox(
+                    _i18n("Quyền riêng tư YouTube", "YouTube Privacy"),
+                    options=["public (Công khai)", "unlisted (Không công khai)", "private (Riêng tư)"],
+                    index=0,
+                    key="social_pub_yt_privacy",
+                )
+                yt_pub_privacy = yt_pub_privacy_display.split()[0]
+
+                yt_pub_kids_display = st.selectbox(
+                    _i18n("Nội dung cho trẻ em", "Made for Kids"),
+                    options=["No (Không dành cho trẻ em)", "Yes (Dành cho trẻ em)"],
+                    index=0,
+                    key="social_pub_yt_kids",
+                )
+                yt_pub_kids = yt_pub_kids_display.startswith("Yes")
+            with c_tt_set:
+                st.markdown("**🎵 TikTok**")
+                tt_pub_privacy_display = st.selectbox(
+                    _i18n("Quyền riêng tư TikTok", "TikTok Privacy"),
+                    options=[
+                        "PUBLIC_TO_EVERYONE (Công khai)",
+                        "MUTUAL_FOLLOW_FRIENDS (Bạn bè)",
+                        "SELF_ONLY (Chỉ mình tôi)",
+                    ],
+                    index=0,
+                    key="social_pub_tt_privacy",
+                )
+                tt_pub_privacy = tt_pub_privacy_display.split()[0]
+
+        st.markdown("---")
+        st.markdown(f"**📝 {_i18n('3. Thêm & Chỉnh sửa nội dung đăng tải', '3. Add & Edit Post Content')}**")
+
+        # Prefill candidates from session state
+        scraped_art = st.session_state.get("scraped_article_data")
+        default_art_url = (
+            st.session_state.get("article_url")
+            or getattr(scraped_art, "url", "")
+            or st.session_state.get("news_article_url_input", "")
+        ).strip()
+
+        default_subject = (
+            st.session_state.get("video_subject")
+            or getattr(scraped_art, "title", "")
+            or (os.path.splitext(chosen_video_name)[0] if chosen_video_name else "")
+        ).strip()
+
+        # Title Input
+        raw_post_title = st.text_input(
+            "📌 " + _i18n("Tiêu đề video", "Video Title"),
+            value=st.session_state.get("social_publish_title", default_subject),
+            max_chars=100,
+            placeholder=_i18n("Nhập tiêu đề hấp dẫn cho video (tối đa 100 ký tự)...", "Enter an engaging title for the video (max 100 chars)..."),
+            key="social_publish_title_input",
+            help=_i18n("Tiêu đề hiển thị trên YouTube Shorts và đầu caption TikTok (tối đa 100 ký tự)", "Title displayed on YouTube Shorts and at beginning of TikTok caption (max 100 chars)"),
+        )
+        post_title_val = (raw_post_title or "").strip()
+
+        # Article Link Input - PREFILLED WITH ARTICLE LINK!
+        col_art_link, col_art_btn = st.columns([3, 1.2], vertical_alignment="bottom")
+        with col_art_link:
+            raw_art_link = st.text_input(
+                "📰 " + _i18n("Link bài báo nguồn (Sẽ tự động chèn vào mô tả)", "Source Article Link (Auto-inserted into description)"),
+                value=st.session_state.get("social_publish_article_url", default_art_url),
+                placeholder="https://vnexpress.net/... hoặc https://tuoitre.vn/...",
+                key="social_publish_article_url_input",
+                help=_i18n("Link bài báo gốc dùng để tạo video. Sẽ được tự động định dạng và gắn vào phần mô tả video.",
+                           "Original article link used for video generation. Will be automatically formatted and included in the video description."),
+            )
+            article_link_val = (raw_art_link or "").strip()
+
+        # Build initial prefilled description with article link if not already customized
+        current_desc = st.session_state.get("social_publish_description")
+        if current_desc is None:
+            initial_desc_parts = []
+            if default_subject:
+                initial_desc_parts.append(default_subject)
+            if article_link_val:
+                initial_desc_parts.append(f"📰 Nguồn bài báo: {article_link_val}")
+            initial_desc_parts.append("#tintuc #vietnam #news #shorts")
+            current_desc = "\n\n".join(initial_desc_parts)
+
+        with col_art_btn:
+            if st.button("🔗 " + _i18n("Cập nhật link", "Update Link"), use_container_width=True, key="btn_apply_article_link") and article_link_val and article_link_val not in (current_desc or ""):
+                current_desc = f"{(current_desc or '').strip()}\n\n📰 Nguồn bài báo: {article_link_val}".strip()
+                st.session_state["social_publish_description"] = current_desc
+                st.toast(_i18n("Đã chèn link bài báo vào mô tả!", "Article link inserted into description!"), icon="📰")
+                st.rerun(scope="app")
+
+        # Description Text Area (CÓ SẴN LINK BÀI BÁO)
+        post_desc_val = st.text_area(
+            "📄 " + _i18n("Mô tả video (Có sẵn link bài báo & nội dung chi tiết)", "Video Description (Contains article link & details)"),
+            value=current_desc,
+            height=140,
+            placeholder=_i18n("Tóm tắt nội dung video...\n\n📰 Nguồn bài báo: https://...\n\n#tintuc #vietnam",
+                               "Video summary...\n\n📰 Source: https://...\n\n#news #shorts"),
+            key="social_publish_description_input",
+            help=_i18n("Phần mô tả chi tiết trên YouTube và nội dung bài đăng trên TikTok. Đã bao gồm liên kết bài báo nguồn để minh bạch nguồn tin.",
+                       "Detailed description on YouTube and post content on TikTok. Includes source article link for news transparency."),
+        )
+
+        # Hashtags Input with Quick Chips
+        current_hashtags = st.session_state.get("social_publish_hashtags", "#tintuc #vietnam #news #shorts #tiktok")
+        raw_hashtags = st.text_input(
+            "🏷️ " + _i18n("Hashtags", "Hashtags"),
+            value=current_hashtags,
+            placeholder="#tintuc #vietnam #thoisu #shorts #tiktok",
+            key="social_publish_hashtags_input",
+        )
+        post_hashtags_val = (raw_hashtags or "").strip()
+
+        # Quick Tag Chips
+        st.caption(_i18n("Gợi ý hashtag phổ biến (bấm để thêm nhanh):", "Popular hashtags (click to quickly append):"))
+        popular_chips = ["#tintuc", "#thoisu", "#vietnam", "#shorts", "#tiktok", "#xuhuong", "#viral", "#hotnews"]
+        chip_cols = st.columns(len(popular_chips))
+        for c_idx, chip in enumerate(popular_chips):
+            with chip_cols[c_idx]:
+                if st.button(chip, key=f"chip_btn_{c_idx}", use_container_width=True, type="tertiary") and chip not in post_hashtags_val:
+                    new_tags = f"{post_hashtags_val} {chip}".strip()
+                    st.session_state["social_publish_hashtags"] = new_tags
+                    st.rerun(scope="app")
+
+        # AI Assistant Button to Generate Engaging Post Content
+        st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
+        if st.button("✨ " + _i18n("AI Tạo nội dung đăng tối ưu (Tiêu đề, Mô tả, Hashtag)", "AI Generate Optimized Post Content"), key="btn_ai_gen_post_content", use_container_width=True, type="secondary"):
+            with st.spinner(_i18n("AI đang sáng tạo tiêu đề giật gân, mô tả có link báo và hashtag tối ưu...", "AI generating engaging title, description with article link, and hashtags...")):
+                try:
+                    ai_subject = post_title_val or default_subject or "Bản tin thời sự Việt Nam"
+                    ai_meta = llm.generate_social_metadata(
+                        video_subject=ai_subject,
+                        video_script=st.session_state.get("video_script", ""),
+                        language=config.ui.get("video_language", "vi") or "vi",
+                        platform="youtube_shorts" if has_yt_target else "tiktok",
+                    )
+                    gen_title = ai_meta.get("title") or ai_subject
+                    gen_caption = ai_meta.get("caption") or ""
+                    gen_tags = ai_meta.get("hashtags", [])
+
+                    # Integrate article URL directly into AI description
+                    if article_link_val:
+                        gen_desc = f"{gen_caption}\n\n📰 Nguồn bài báo: {article_link_val}".strip()
+                    else:
+                        gen_desc = gen_caption
+
+                    tag_str = " ".join(f"#{t.lstrip('#')}" for t in gen_tags) if gen_tags else "#tintuc #vietnam #shorts"
+
+                    st.session_state["social_publish_title"] = gen_title[:100]
+                    st.session_state["social_publish_description"] = gen_desc
+                    st.session_state["social_publish_hashtags"] = tag_str
+                    st.toast(_i18n("AI đã tạo nội dung đăng bài thành công!", "AI generated post content successfully!"), icon="✨")
+                    st.rerun(scope="app")
+                except Exception as ai_err:  # noqa: BLE001
+                    logger.warning(f"Failed to generate social metadata via AI: {ai_err}")
+                    st.error(f"Lỗi AI: {ai_err}")
+
+        # Publish Action Button
+        st.markdown("---")
+        publish_btn = st.button(
+            "🚀 " + _i18n("Đăng video lên các tài khoản đã chọn", "Publish Video to Selected Accounts Now"),
+            key="btn_execute_social_publish",
+            type="primary",
+            use_container_width=True,
+        )
+
+        if publish_btn:
+            if not chosen_video_path or not os.path.exists(chosen_video_path):
+                st.error("❌ " + _i18n("Vui lòng chọn một video hợp lệ để đăng!", "Please select a valid video to publish!"))
+            elif not selected_account_ids:
+                st.warning("⚠️ " + _i18n("Vui lòng tích chọn ít nhất 1 tài khoản đích (YouTube hoặc TikTok)!", "Please select at least 1 target account!"))
+            elif not post_title_val:
+                st.warning("⚠️ " + _i18n("Vui lòng nhập tiêu đề cho video!", "Please enter a title for the video!"))
+            else:
+                progress_placeholder = st.empty()
+                progress_placeholder.info("⏳ " + _i18n("Đang khởi chạy tiến trình đăng video lên các nền tảng...", "Starting video publishing to platforms..."))
+
+                # Determine target platforms and accounts
+                target_accs = [a for a in accounts if a.get("id") in selected_account_ids]
+                target_plats: list[str] = sorted({str(a["platform"]) for a in target_accs if a.get("platform")})
+                target_plats_str = ", ".join(target_plats)
+
+                with st.spinner(_i18n(f"Đang đẩy video '{chosen_video_name}' lên {target_plats_str}...", f"Uploading video '{chosen_video_name}' to {target_plats_str}...")):
+                    try:
+                        pub_res = social_account_service.publish_video(
+                            video_path=chosen_video_path,
+                            title=post_title_val,
+                            description=post_desc_val,
+                            hashtags=post_hashtags_val,
+                            platforms=target_plats,
+                            youtube_privacy=yt_pub_privacy,
+                            youtube_made_for_kids=yt_pub_kids,
+                            tiktok_privacy=tt_pub_privacy,
+                            article_url=article_link_val,
+                            account_id=selected_account_ids[0] if len(selected_account_ids) == 1 else None,
+                        )
+
+                        progress_placeholder.empty()
+
+                        if pub_res.get("success"):
+                            st.balloons()
+                            req_id = pub_res.get("request_id", "")
+                            st.success(
+                                _i18n(
+                                    f"🎉 Đã đăng video thành công lên {target_plats_str}! (Mã yêu cầu: {req_id})",
+                                    f"🎉 Video published successfully to {target_plats_str}! (Request ID: {req_id})"
+                                )
+                            )
+                            # Show platform breakdown if available
+                            results_map = pub_res.get("results")
+                            if isinstance(results_map, dict):
+                                for p, r in results_map.items():
+                                    if isinstance(r, dict) and r.get("success"):
+                                        st.caption(f"✅ **{p.capitalize()}**: {_i18n('Đăng tải thành công!', 'Published successfully!')}")
+                                    else:
+                                        st.caption(f"⚠️ **{p.capitalize()}**: {r.get('error') or r.get('message') or 'Thành công'}")
+                        else:
+                            err_msg = pub_res.get("error") or pub_res.get("message") or _i18n("Lỗi không xác định khi đăng video", "Unknown error while uploading")
+                            st.error(f"❌ {_i18n('Đăng video thất bại:', 'Publishing failed:')} {err_msg}")
+                    except Exception as pub_exc:  # noqa: BLE001
+                        progress_placeholder.empty()
+                        logger.exception(f"Publish execution error: {pub_exc}")
+                        st.error(f"❌ {_i18n('Lỗi hệ thống khi đăng video:', 'System error:')} {pub_exc}")
+
+    # ================= RECENT PUBLISH HISTORY =================
+    st.markdown("---")
+    with st.expander("📜 " + _i18n("Lịch sử đăng video lên Mạng xã hội gần đây", "Recent Social Media Publish History"), expanded=False):
+        history = social_account_service.get_publish_history(limit=25)
+        if not history:
+            st.caption(_i18n("Chưa có lượt đăng video nào được ghi nhận.", "No publish history recorded yet."))
+        else:
+            _, col_h_clr = st.columns([1, 1])
+            with col_h_clr:
+                if st.button("🗑️ " + _i18n("Xóa lịch sử", "Clear History"), key="btn_clr_pub_hist", type="tertiary"):
+                    social_account_service.clear_publish_history()
+                    st.rerun(scope="app")
+
+            for entry in history:
+                is_ok = entry.get("success", False)
+                stat_icon = "✅" if is_ok else "❌"
+                stat_color = "#22c55e" if is_ok else "#ef4444"
+                plat_badges = " ".join([("🔴 YouTube" if p == "youtube" else "🎵 TikTok") for p in entry.get("platforms", [])])
+
+                with st.container(border=True):
+                    c_h1, c_h2 = st.columns([3, 1])
+                    with c_h1:
+                        st.markdown(f"**{stat_icon} {entry.get('title', 'Video')}**")
+                        st.caption(
+                            f"📁 `{entry.get('video_filename', '')}` | {plat_badges} | "
+                            f"📅 {entry.get('timestamp', '')[:19].replace('T', ' ')}"
+                        )
+                        if entry.get("article_url"):
+                            st.caption(f"📰 {_i18n('Link bài báo:', 'Article link:')} `{entry.get('article_url')}`")
+                        if not is_ok and entry.get("error"):
+                            st.error(f"⚠️ Lỗi: {entry.get('error')}")
+                    with c_h2:
+                        req = entry.get("request_id", "")
+                        if req:
+                            st.caption(f"ID: `{req[:16]}...`")
+                        status_label = _i18n("Thành công", "Success") if is_ok else _i18n("Thất bại", "Failed")
+                        st.markdown(f"<span style='color: {stat_color}; font-weight: 700;'>{status_label}</span>", unsafe_allow_html=True)
+
+
 def _render_api_settings_view():
     st.markdown(
         f"""
-        <div style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.8) 100%); 
-                    border: 1px solid rgba(255, 255, 255, 0.08); 
-                    border-radius: 14px; 
-                    padding: 16px 20px; 
-                    margin-bottom: 20px; 
+        <div style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.8) 100%);
+                    border: 1px solid rgba(255, 255, 255, 0.08);
+                    border-radius: 14px;
+                    padding: 16px 20px;
+                    margin-bottom: 20px;
                     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);">
             <div>
                 <h3 style="margin: 0; font-size: 1.35rem; color: #f8fafc; display: flex; align-items: center; gap: 8px;">
@@ -10490,7 +11398,15 @@ def _render_api_settings_view():
         """,
         unsafe_allow_html=True
     )
-    _render_settings_content(in_dialog=False)
+    if not st.session_state.get("settings_dialog_open", False):
+        _render_settings_content(in_dialog=False)
+    else:
+        st.info(
+            _i18n(
+                "Cửa sổ cài đặt đang được mở dưới dạng hộp thoại.",
+                "Settings dialog is currently open as a modal dialog.",
+            )
+        )
 
 
 def _render_user_guide_view():
@@ -10681,47 +11597,42 @@ def _render_system_diagnostic_and_update_view():
     health = system_updater.get_system_health()
 
     c1, c2, c3 = st.columns(3)
-    with c1:
-        with st.container(border=True):
-            status_icon = "✅" if health["python"]["ok"] else "❌"
-            st.markdown(f"**🐍 Python Runtime**: {status_icon}")
-            st.caption(f"Phiên bản: `{health['python']['version']}`")
-            st.caption(f"Thực thi: `{health['python']['executable']}`")
+    with c1, st.container(border=True):
+        status_icon = "✅" if health["python"]["ok"] else "❌"
+        st.markdown(f"**🐍 Python Runtime**: {status_icon}")
+        st.caption(f"Phiên bản: `{health['python']['version']}`")
+        st.caption(f"Thực thi: `{health['python']['executable']}`")
 
-    with c2:
-        with st.container(border=True):
-            status_icon = "✅" if health["ffmpeg"]["ok"] else "❌"
-            st.markdown(f"**🎬 FFmpeg Media Engine**: {status_icon}")
-            st.caption(f"Trạng thái: {'Sẵn sàng' if health['ffmpeg']['ok'] else 'Chưa cài đặt'}")
-            st.caption(f"Đường dẫn: `{health['ffmpeg']['path']}`")
+    with c2, st.container(border=True):
+        status_icon = "✅" if health["ffmpeg"]["ok"] else "❌"
+        st.markdown(f"**🎬 FFmpeg Media Engine**: {status_icon}")
+        st.caption(f"Trạng thái: {'Sẵn sàng' if health['ffmpeg']['ok'] else 'Chưa cài đặt'}")
+        st.caption(f"Đường dẫn: `{health['ffmpeg']['path']}`")
 
-    with c3:
-        with st.container(border=True):
-            status_icon = "✅" if health["git"]["ok"] else "⚠️"
-            st.markdown(f"**🐙 Git Version Control**: {status_icon}")
-            st.caption(f"Phiên bản: `{health['git']['version'] or 'Chưa cài đặt'}`")
-            st.caption(f"Đường dẫn: `{health['git']['path']}`")
+    with c3, st.container(border=True):
+        status_icon = "✅" if health["git"]["ok"] else "⚠️"
+        st.markdown(f"**🐙 Git Version Control**: {status_icon}")
+        st.caption(f"Phiên bản: `{health['git']['version'] or 'Chưa cài đặt'}`")
+        st.caption(f"Đường dẫn: `{health['git']['path']}`")
 
     c4, c5 = st.columns(2)
-    with c4:
-        with st.container(border=True):
-            storage_icon = "✅" if health["storage"]["ok"] else "❌"
-            st.markdown(f"**💾 Thư mục lưu trữ (Storage)**: {storage_icon}")
-            st.caption(f"Video đã tạo: `{health['storage']['final_videos_dir']}`")
-            st.caption(f"Tác vụ xử lý: `{health['storage']['tasks_dir']}`")
-            if health["storage"]["notes"]:
-                for n in health["storage"]["notes"]:
-                    st.warning(n)
+    with c4, st.container(border=True):
+        storage_icon = "✅" if health["storage"]["ok"] else "❌"
+        st.markdown(f"**💾 Thư mục lưu trữ (Storage)**: {storage_icon}")
+        st.caption(f"Video đã tạo: `{health['storage']['final_videos_dir']}`")
+        st.caption(f"Tác vụ xử lý: `{health['storage']['tasks_dir']}`")
+        if health["storage"]["notes"]:
+            for n in health["storage"]["notes"]:
+                st.warning(n)
 
-    with c5:
-        with st.container(border=True):
-            api_info = health["api_keys"]
-            llm_ok = api_info["llm_configured"]
-            pexels_ok = api_info["pexels_configured"]
-            st.markdown(f"**🔑 Trạng thái Khóa API**")
-            st.caption(f"• Mô hình LLM ({api_info['llm_provider']}): {'✅ Đã cấu hình' if llm_ok else '⚠️ Chưa nhập API Key'}")
-            st.caption(f"• Tư liệu Pexels: {'✅ Đã cấu hình' if pexels_ok else '⚠️ Chưa nhập API Key'}")
-            st.caption("Cấu hình thêm tại tab **Nhập API AI**.")
+    with c5, st.container(border=True):
+        api_info = health["api_keys"]
+        llm_ok = api_info["llm_configured"]
+        pexels_ok = api_info["pexels_configured"]
+        st.markdown("**🔑 Trạng thái Khóa API**")
+        st.caption(f"• Mô hình LLM ({api_info['llm_provider']}): {'✅ Đã cấu hình' if llm_ok else '⚠️ Chưa nhập API Key'}")
+        st.caption(f"• Tư liệu Pexels: {'✅ Đã cấu hình' if pexels_ok else '⚠️ Chưa nhập API Key'}")
+        st.caption("Cấu hình thêm tại tab **Nhập API AI**.")
 
     st.markdown("---")
 
@@ -10732,7 +11643,7 @@ def _render_system_diagnostic_and_update_view():
         "The system connects to the official GitHub repository to check for newer commits and features."
     ))
 
-    btn_col1, btn_col2 = st.columns([1.5, 2.5], vertical_alignment="center")
+    btn_col1, _ = st.columns([1.5, 2.5], vertical_alignment="center")
     with btn_col1:
         check_now = st.button(
             "🔍 " + _i18n("Kiểm tra bản cập nhật ngay", "Check for Updates Now"),
@@ -10856,10 +11767,12 @@ def _render_application():
     if restore_applied or restore_succeeded:
         st.success(tr("Task Configuration Loaded"))
 
-    # Main Navigation: 5 Tabs
+    # Main Navigation: 7 Tabs
     tab_labels = [
         f"🎬 {_i18n('Tạo video', 'Create Video')}",
         f"📁 {_i18n('Video đã tạo', 'Generated Videos')}",
+        f"🔗 {_i18n('Liên kết tài khoản', 'Linked Accounts')}",
+        f"📤 {_i18n('Đăng video MXH', 'Publish Video')}",
         f"🔑 {_i18n('Nhập API AI', 'AI API Settings')}",
         f"📖 {_i18n('Hướng dẫn sử dụng', 'User Guide')}",
         f"⚡ {_i18n('Tự kiểm tra & Cập nhật', 'System & Update')}",
@@ -10873,12 +11786,18 @@ def _render_application():
         _render_generated_videos_tab()
 
     with main_tabs[2]:
-        _render_api_settings_view()
+        _render_social_accounts_tab()
 
     with main_tabs[3]:
-        _render_user_guide_view()
+        _render_social_publish_tab()
 
     with main_tabs[4]:
+        _render_api_settings_view()
+
+    with main_tabs[5]:
+        _render_user_guide_view()
+
+    with main_tabs[6]:
         _render_system_diagnostic_and_update_view()
 
 

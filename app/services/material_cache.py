@@ -180,9 +180,13 @@ def _is_same_cache_file(cache_path: Path, expected: os.stat_result) -> bool:
         current = cache_path.stat(follow_symlinks=False)
     except FileNotFoundError:
         return False
-    return stat.S_ISREG(current.st_mode) and (
-        current.st_dev, current.st_ino, current.st_mtime_ns, current.st_size
-    ) == (expected.st_dev, expected.st_ino, expected.st_mtime_ns, expected.st_size)
+    if not stat.S_ISREG(current.st_mode):
+        return False
+    if expected.st_dev and current.st_dev != expected.st_dev:
+        return False
+    if expected.st_ino and current.st_ino != expected.st_ino:
+        return False
+    return (current.st_mtime_ns, current.st_size) == (expected.st_mtime_ns, expected.st_size)
 
 
 def _remove_invalid_cache(

@@ -3,8 +3,7 @@ import re
 import ipaddress
 import urllib.parse
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, List, Optional, Union
+from typing import Any, List, Union
 
 import requests
 from bs4 import BeautifulSoup

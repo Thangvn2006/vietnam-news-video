@@ -2334,7 +2334,7 @@ class TestSocialMetadata(unittest.TestCase):
 
         self.assertEqual(result["title"], "上海一日游")
         self.assertEqual(result["caption"], "收藏这条路线，下次直接出发！")
-        self.assertEqual(result["hashtags"], ["# Shanghai", "#游", "#shorts"])
+        self.assertEqual(result["hashtags"], ["#Shanghai", "#游", "#shorts"])
 
     def test_generate_social_metadata_falls_back_to_generic_hashtags(self):
         with patch.object(

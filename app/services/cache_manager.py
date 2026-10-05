@@ -222,12 +222,13 @@ def clean_video_cache(max_age_days: int | None = None) -> VideoCacheCleanupResul
             except FileNotFoundError:
                 # Another cleanup already removed the scanned candidate.
                 continue
-            if not stat.S_ISREG(current.st_mode) or (
-                current.st_dev,
-                current.st_ino,
-                current.st_mtime_ns,
-                current.st_size,
-            ) != (entry.device, entry.inode, entry.mtime_ns, entry.size):
+            if not stat.S_ISREG(current.st_mode):
+                continue
+            if entry.device and current.st_dev != entry.device:
+                continue
+            if entry.inode and current.st_ino != entry.inode:
+                continue
+            if (current.st_mtime_ns, current.st_size) != (entry.mtime_ns, entry.size):
                 # A downloader may atomically publish a new file at this name
                 # after the scan. Do not delete the fresh replacement.
                 continue
